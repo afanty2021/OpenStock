@@ -1,6 +1,7 @@
 <div align="center">
   Checkout new amazing projects also, <a href="github.com/open-dev-society/openreadme" target="_blank">OpenReadme </a> is live
 </div>  
+<a href="https://hellogithub.com/repository/Open-Dev-Society/OpenStock" target="_blank"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=5c4337a9e2dd4a8ba8aba87a88f04b8b&claim_uid=07HezcXv9puSGKQ&theme=neutral" alt="Featured｜HelloGitHub" style="width: 250px; height: 54px;" width="250" height="54" /></a>
 <div align="center">
   <br />
   <a href="#" target="_blank">
@@ -241,13 +242,15 @@ BETTER_AUTH_SECRET=your_better_auth_secret
 BETTER_AUTH_URL=http://localhost:3000
 
 # Finnhub
-FINNHUB_API_KEY=your_finnhub_key
-# Optional client-exposed variant if needed by client code:
-NEXT_PUBLIC_FINNHUB_API_KEY=
+# Note: NEXT_PUBLIC_FINNHUB_API_KEY is required for Vercel deployment
+NEXT_PUBLIC_FINNHUB_API_KEY=your_finnhub_key
 FINNHUB_BASE_URL=https://finnhub.io/api/v1
 
 # Inngest AI (Gemini)
 GEMINI_API_KEY=your_gemini_api_key
+# Inngest Signing Key (required for Vercel deployment)
+# Get this from your Inngest dashboard: https://app.inngest.com/env/settings/keys
+INNGEST_SIGNING_KEY=your_inngest_signing_key
 
 # Email (Nodemailer via Gmail; consider App Passwords if 2FA)
 NODEMAILER_EMAIL=youraddress@gmail.com
@@ -267,12 +270,15 @@ BETTER_AUTH_SECRET=your_better_auth_secret
 BETTER_AUTH_URL=http://localhost:3000
 
 # Finnhub
-FINNHUB_API_KEY=your_finnhub_key
-NEXT_PUBLIC_FINNHUB_API_KEY=
+# Note: NEXT_PUBLIC_FINNHUB_API_KEY is required for Vercel deployment
+NEXT_PUBLIC_FINNHUB_API_KEY=your_finnhub_key
 FINNHUB_BASE_URL=https://finnhub.io/api/v1
 
 # Inngest AI (Gemini)
 GEMINI_API_KEY=your_gemini_api_key
+# Inngest Signing Key (required for Vercel deployment)
+# Get this from your Inngest dashboard: https://app.inngest.com/env/settings/keys
+INNGEST_SIGNING_KEY=your_inngest_signing_key
 
 # Email (Nodemailer via Gmail; consider App Passwords if 2FA)
 NODEMAILER_EMAIL=youraddress@gmail.com
@@ -328,7 +334,7 @@ public/assets/images/   # logos and screenshots
 
 - Finnhub
     - Stock search, company profiles, and market news.
-    - Set `FINNHUB_API_KEY` and `FINNHUB_BASE_URL` (default: https://finnhub.io/api/v1).
+    - Set `NEXT_PUBLIC_FINNHUB_API_KEY` and `FINNHUB_BASE_URL` (default: https://finnhub.io/api/v1).
     - Free tiers may return delayed quotes; respect rate limits and terms.
 
 - TradingView
