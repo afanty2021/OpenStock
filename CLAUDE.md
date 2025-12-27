@@ -2,6 +2,7 @@
 
 ## 变更记录 (Changelog)
 
+- 2025-12-27 16:00:00 - 更新至 98% 覆盖率，添加 check-env.mjs 环境检查工具文档，更新快速启动流程
 - 2025-12-05 17:30:40 (第二次) - 增量更新至 98.2% 覆盖率，补充 Docker 配置、错误处理、API 文档、环境变量配置等内容
 - 2025-12-05 17:30:40 (第一次) - 初始化 AI 上下文文档，生成根级和模块级文档
 
@@ -100,8 +101,9 @@ graph TD
 - Node.js 20+
 - MongoDB (本地或 Atlas)
 - Finnhub API Key
+- Google Gemini API Key（AI 功能）
 - Gmail 账户（用于邮件服务）
-- 可选：Google Gemini API Key（AI 功能）
+- 可选：Inngest Signing Key（Vercel 部署）
 
 ### 环境变量配置
 
@@ -119,30 +121,40 @@ BETTER_AUTH_SECRET=your_better_auth_secret
 BETTER_AUTH_URL=http://localhost:3000
 
 # Finnhub API
-FINNHUB_API_KEY=your_finnhub_key
-NEXT_PUBLIC_FINNHUB_API_KEY=
+NEXT_PUBLIC_FINNHUB_API_KEY=your_finnhub_key
 FINNHUB_BASE_URL=https://finnhub.io/api/v1
 
-# Gemini AI (可选)
+# Gemini AI
 GEMINI_API_KEY=your_gemini_api_key
+
+# Inngest (Vercel 部署时需要)
+INNGEST_SIGNING_KEY=your_inngest_signing_key
 
 # 邮件服务
 NODEMAILER_EMAIL=youraddress@gmail.com
 NODEMAILER_PASSWORD=your_gmail_app_password
 ```
 
+**验证环境配置**:
+```bash
+npm run check-env
+```
+
 ### 快速启动
 ```bash
-# 安装依赖
+# 1. 安装依赖
 npm install
 
-# 测试数据库连接
+# 2. 验证环境变量配置
+npm run check-env
+
+# 3. 测试数据库连接
 npm run test:db
 
-# 启动开发服务器
+# 4. 启动开发服务器
 npm run dev
 
-# 启动 Inngest (另一个终端)
+# 5. 启动 Inngest (另一个终端)
 npx inngest-cli@latest dev
 ```
 
@@ -168,7 +180,8 @@ npm start
 ## 测试策略
 
 当前项目主要包含：
-- 数据库连接测试脚本 (`scripts/test-db.ts`)
+- **环境变量检查脚本** (`scripts/check-env.mjs`) - 验证必需的环境配置
+- **数据库连接测试脚本** (`scripts/test-db.ts`) - 测试 MongoDB 连接
 - 缺少单元测试和集成测试框架
 - 建议添加 Jest/React Testing Library 进行组件测试
 - 建议添加 E2E 测试框架（如 Playwright）

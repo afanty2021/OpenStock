@@ -10,11 +10,85 @@
 
 ```
 scripts/
+├── check-env.mjs   # 环境变量检查工具
 ├── test-db.mjs     # 数据库连接测试 (ES模块)
 └── test-db.ts      # 数据库连接测试 (TS版本)
 ```
 
 ## 脚本详情
+
+### check-env.mjs
+
+**用途**: 验证项目运行所需的环境变量是否完整配置
+
+**使用方式**:
+```bash
+node scripts/check-env.mjs
+```
+
+**功能特性**:
+- ✅ 检查所有必需的环境变量
+- ⚠️ 提示可选/已弃用的变量
+- 🔒 敏感值掩码显示（保护密钥安全）
+- 📊 生成详细的检查报告
+- 🚫 配置不完整时退出并返回错误码
+
+**必需环境变量**:
+```javascript
+// 核心配置
+NODE_ENV                    // 运行环境 (development/production)
+
+// 数据库
+MONGODB_URI                 // MongoDB 连接字符串
+
+// Better Auth
+BETTER_AUTH_SECRET          // 认证密钥
+BETTER_AUTH_URL             // 认证服务 URL
+
+// Finnhub API
+NEXT_PUBLIC_FINNHUB_API_KEY // Finnhub 公开 API 密钥
+FINNHUB_BASE_URL            // Finnhub API 基础 URL
+
+// Inngest 自动化
+GEMINI_API_KEY              // Google Gemini AI 密钥
+INNGEST_SIGNING_KEY         // Inngest 签名密钥 (Vercel 部署)
+
+// 邮件服务
+NODEMAILER_EMAIL            // Gmail 发件地址
+NODEMAILER_PASSWORD         // Gmail 应用密码
+```
+
+**输出示例**:
+```
+🔍 Checking Environment Variables...
+============================================================
+
+✅ Present Variables:
+------------------------------------------------------------
+  ✓ NODE_ENV
+    development or production
+    Value: deve***
+
+  ✓ MONGODB_URI
+    MongoDB connection string
+    Value: mong***
+
+❌ Missing Variables:
+------------------------------------------------------------
+  ✗ BETTER_AUTH_SECRET
+    Secret key for Better Auth
+
+============================================================
+Summary: 7/9 required variables present
+
+⚠️  Missing 2 required variable(s).
+```
+
+**使用场景**:
+- 🆕 新项目初始化时验证配置
+- 🚀 部署前环境检查
+- 🐛 调试配置问题
+- 📝 CI/CD 流程中的验证步骤
 
 ### test-db.mjs/test-db.ts
 
@@ -42,9 +116,22 @@ npm run test:db
 ```json
 {
   "scripts": {
+    "check-env": "node scripts/check-env.mjs",
     "test:db": "node scripts/test-db.mjs"
   }
 }
+```
+
+**建议使用顺序**:
+```bash
+# 1. 首先检查环境变量配置
+npm run check-env
+
+# 2. 环境变量通过后，测试数据库连接
+npm run test:db
+
+# 3. 最后启动开发服务器
+npm run dev
 ```
 
 ## 开发建议
