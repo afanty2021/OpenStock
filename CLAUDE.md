@@ -2,6 +2,7 @@
 
 ## 变更记录 (Changelog)
 
+- 2026-02-10 - 更新至 Next.js 15.5.7 + React 19.1.0，新增股票提醒功能、观察列表增强组件、API 文档页面，添加 10+ 个新脚本
 - 2025-12-27 16:00:00 - 更新至 98% 覆盖率，添加 check-env.mjs 环境检查工具文档，更新快速启动流程
 - 2025-12-05 17:30:40 (第二次) - 增量更新至 98.2% 覆盖率，补充 Docker 配置、错误处理、API 文档、环境变量配置等内容
 - 2025-12-05 17:30:40 (第一次) - 初始化 AI 上下文文档，生成根级和模块级文档
@@ -13,14 +14,15 @@ OpenStock 是一个开源的股票市场追踪平台，旨在为所有人提供�
 ## 架构总览
 
 ### 技术栈
-- **前端框架**: Next.js 15 (App Router) + React 19
+- **前端框架**: Next.js 15.5.7 (App Router) + React 19.1.0
 - **开发语言**: TypeScript (93.4%), CSS (6%), JavaScript (0.6%)
 - **UI 框架**: Tailwind CSS v4 + shadcn/ui + Radix UI primitives
-- **认证系统**: Better Auth (邮箱/密码) + MongoDB adapter
-- **数据库**: MongoDB + Mongoose ODM
+- **认证系统**: Better Auth 1.3.25 (邮箱/密码) + MongoDB adapter
+- **数据库**: MongoDB + Mongoose 8.19 ODM
 - **外部 API**: Finnhub (股票数据), TradingView (图表组件)
-- **自动化**: Inngest (事件、定时任务、AI 推理)
+- **自动化**: Inngest 3.47.0 (事件、定时任务、AI 推理)
 - **邮件服务**: Nodemailer (Gmail transport)
+- **分析**: Vercel Analytics
 - **部署**: Docker + Docker Compose
 - **构建工具**: Turbopack
 
@@ -28,7 +30,7 @@ OpenStock 是一个开源的股票市场追踪平台，旨在为所有人提供�
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │   Next.js App   │────▶│   MongoDB DB    │◀────│  Better Auth    │
-│   (Frontend)    │     │  (User/Watchlist)│     │  (Auth Layer)   │
+│   (Frontend)    │     │  (User/Watchlist/Alert)││  (Auth Layer)   │
 └────────┬────────┘     └─────────────────┘     └─────────────────┘
          │
          ▼
@@ -60,15 +62,29 @@ graph TD
 
     B --> B1["(auth)"];
     B --> B2["(root)"];
-    B --> B3["api"];
 
     C --> C1["ui"];
     C --> C2["forms"];
+    C --> C3["watchlist"];
+    C --> C4["charts"];
+
+    D --> D1["models"];
+    D --> D2["mongoose.ts"];
 
     E --> E1["actions"];
     E --> E2["better-auth"];
     E --> E3["inngest"];
     E --> E4["nodemailer"];
+    E --> E5["kit.ts"];
+
+    F --> F1["useTradingViewWidget.ts"];
+
+    G --> G1["middleware.ts"];
+
+    H --> H1["脚本目录 (10+ 脚本)"];
+
+    I --> I1["assets/icons"];
+    I --> I2["assets/images"];
 
     click B "./app/CLAUDE.md" "查看 app 模块文档"
     click C "./components/CLAUDE.md" "查看 components 模块文档"
@@ -77,8 +93,6 @@ graph TD
     click F "./hooks/CLAUDE.md" "查看 hooks 模块文档"
     click G "./middleware/CLAUDE.md" "查看 middleware 模块文档"
     click H "./scripts/CLAUDE.md" "查看 scripts 模块文档"
-    click I "./public/CLAUDE.md" "查看 public 模块文档"
-    click J "./types/CLAUDE.md" "查看 types 模块文档"
 ```
 
 ## 模块索引
@@ -87,13 +101,35 @@ graph TD
 |---------|---------|-----------|
 | app | Next.js App Router 应用主体，包含页面路由和 API 路由 | Next.js, React, TypeScript |
 | components | React UI 组件库，包含通用组件和业务组件 | React, Tailwind CSS, shadcn/ui |
+| components/watchlist | 观察列表专用组件（表格、提醒、新闻等） | React, TradingView API |
 | database | 数据库连接和 Mongoose 模型定义 | MongoDB, Mongoose |
+| database/models | 数据模型定义（User, Watchlist, Alert） | TypeScript, Mongoose |
 | lib | 核心业务逻辑，包含 actions、认证、集成等 | TypeScript, Better Auth, Inngest |
+| lib/actions | Server Actions（alert, auth, finnhub, watchlist） | TypeScript |
+| lib/kit.ts | Better Auth 与第三方集成的适配层 | TypeScript |
 | hooks | React 自定义 Hooks | React, TypeScript |
 | middleware | Next.js 中间件，处理路由保护 | Next.js |
-| scripts | 构建和部署脚本 | Node.js |
+| scripts | 构建和部署脚本（10+ 个） | Node.js |
 | public | 静态资源文件 | 图片、图标 |
 | types | TypeScript 类型定义 | TypeScript |
+
+## 核心功能模块
+
+### 股票数据功能
+- **搜索与浏览**: 通过 Finnhub API 搜索股票、获取实时报价
+- **图表展示**: TradingView Widget 集成，支持 K 线图和技术指标
+- **公司信息**: 展示公司概况、财务数据、基本面分析
+- **市场新闻**: 聚合相关新闻和公告
+
+### 用户功能
+- **认证系统**: Better Auth 支持邮箱/密码注册登录
+- **观察列表**: 自定义股票观察列表，支持排序
+- **价格提醒**: 设置价格阈值提醒，实时监控
+- **新闻订阅**: 每日市场新闻摘要（Inngest 自动化）
+
+### 管理功能
+- **用户管理**: 用户数据迁移、Kit 集成
+- **数据脚本**: 数据库迁移、用户迁移、Kit 转换工具
 
 ## 运行与开发
 
@@ -177,11 +213,44 @@ npm run build
 npm start
 ```
 
+## 新增功能详情 (2026-02)
+
+### 股票提醒系统
+- `CreateAlertModal.tsx` - 创建价格提醒的模态框
+- `AlertsPanel.tsx` - 展示和管理用户提醒
+- `lib/actions/alert.actions.ts` - 提醒相关的 Server Actions
+- `database/models/alert.model.ts` - 提醒数据模型
+
+### 观察列表增强
+- `WatchlistTable.tsx` - 股票观察列表表格组件
+- `WatchlistManager.tsx` - 观察列表管理界面
+- `WatchlistStockChip.tsx` - 股票标签芯片
+- `TradingViewWatchlist.tsx` - TradingView 集成观察列表
+- `NewsGrid.tsx` - 相关新闻网格组件
+
+### 页面更新
+- `app/(root)/api-docs/page.tsx` - API 文档页面（重写）
+- `app/(root)/about/page.tsx` - 关于页面
+- `app/(root)/help/page.tsx` - 帮助页面（重写）
+- `app/(root)/terms/page.tsx` - 条款页面（重写）
+- `app/(root)/watchlist/page.tsx` - 观察列表页面（增强）
+
+### 脚本工具 (10+ 新增)
+- `scripts/migrate-users-to-kit.mjs` - 用户迁移到 Kit 认证
+- `scripts/seed-inactive-user.mjs` - 播种非活跃用户
+- `scripts/verify-watchlist.mjs` - 验证观察列表数据
+- `scripts/test-kit.mjs` - 测试 Kit 集成
+- `scripts/resolve_srv.js` - 解析 SRV 记录
+- `scripts/check_db_name.js` - 检查数据库名称
+- `scripts/create-kit-tag.mjs` - 创建 Kit 标签
+- `scripts/inspect-user.mjs` - 检查用户信息
+- `scripts/list-kit-forms.mjs` - 列出 Kit 表单
+
 ## 测试策略
 
 当前项目主要包含：
 - **环境变量检查脚本** (`scripts/check-env.mjs`) - 验证必需的环境配置
-- **数据库连接测试脚本** (`scripts/test-db.ts`) - 测试 MongoDB 连接
+- **数据库连接测试脚本** (`scripts/test-db.mjs`) - 测试 MongoDB 连接
 - 缺少单元测试和集成测试框架
 - 建议添加 Jest/React Testing Library 进行组件测试
 - 建议添加 E2E 测试框架（如 Playwright）
@@ -217,6 +286,7 @@ npm start
 - 使用 Tailwind CSS v4 进行样式管理
 - 组件使用 shadcn/ui 设计系统
 - 遵循 React 19 和 Next.js 15 最佳实践
+- 使用 `sonner` 作为 toast 通知库
 
 ## 错误处理
 
@@ -257,11 +327,13 @@ npm start
 ## AI 使用指引
 
 ### 项目关键信息
-1. **认证系统**：使用 Better Auth + MongoDB adapter，支持邮箱密码登录
+1. **认证系统**：使用 Better Auth 1.3.25 + MongoDB adapter，支持邮箱密码登录，集成 Better Auth Kit
 2. **数据获取**：Finnhub API 用于股票搜索、新闻获取；TradingView 用于图表展示
 3. **状态管理**：主要依赖 React Server Components 和 Client Components
 4. **邮件服务**：通过 Nodemailer 和 Gmail SMTP 发送邮件
 5. **自动化**：Inngest 处理用户注册后的欢迎邮件和每日新闻摘要
+6. **分析集成**：Vercel Analytics 用于用户行为分析
+7. **提醒系统**：用户可设置价格阈值提醒，支持多种触发条件
 
 ### 开发注意事项
 - 所有 API 密钥应通过环境变量管理
@@ -269,6 +341,7 @@ npm start
 - TradingView 组件需要允许 `i.ibb.co` 域名的图片
 - 生产部署时确保正确的环境变量配置
 - 使用 Turbopack 进行快速开发和构建
+- Better Auth Kit 迁移需要运行 `scripts/migrate-users-to-kit.mjs`
 
 ### 扩展建议
 1. **添加更多数据源**
@@ -319,7 +392,7 @@ jobs:
           node-version: '20'
       - run: npm ci
       - run: npm run lint
-      - run: npm run test
+      - run: npm run test:db
       - run: npm run build
 
   deploy:
@@ -335,7 +408,7 @@ jobs:
 
 ### 建议集成的监控工具
 1. **性能监控**
-   - Vercel Analytics（如果部署在 Vercel）
+   - Vercel Analytics（已集成）
    - Google Analytics
    - Web Vitals 监控
 
@@ -365,6 +438,7 @@ jobs:
    - 安全的密码策略
    - 会话管理
    - CSRF 保护
+   - Better Auth Kit 集成提供额外的安全层
 
 ## 扩展建议
 
@@ -392,3 +466,12 @@ jobs:
    - 用户分享
    - 投资社区
    - 专家观点
+
+## 相关文档
+
+- [API 文档](/api-docs) - 完整的 API 参考
+- [README.md](/README.md) - 项目主文档
+- [scripts/CLAUDE.md](./scripts/CLAUDE.md) - 脚本工具详细文档
+- [app/CLAUDE.md](./app/CLAUDE.md) - 应用模块文档
+- [components/CLAUDE.md](./components/CLAUDE.md) - 组件库文档
+- [database/CLAUDE.md](./database/CLAUDE.md) - 数据库文档
