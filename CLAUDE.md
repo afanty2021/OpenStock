@@ -2,6 +2,7 @@
 
 ## 变更记录 (Changelog)
 
+- 2026-02-14 - 新增 SirayBanner 品牌组件，更新 TradingView 股票代码格式转换（A/H股支持），优化帮助和条款页面，移除 spec-workflow 模板
 - 2026-02-10 - 更新至 Next.js 15.5.7 + React 19.1.0，新增股票提醒功能、观察列表增强组件、API 文档页面，添加 10+ 个新脚本
 - 2025-12-27 16:00:00 - 更新至 98% 覆盖率，添加 check-env.mjs 环境检查工具文档，更新快速启动流程
 - 2025-12-05 17:30:40 (第二次) - 增量更新至 98.2% 覆盖率，补充 Docker 配置、错误处理、API 文档、环境变量配置等内容
@@ -117,7 +118,7 @@ graph TD
 
 ### 股票数据功能
 - **搜索与浏览**: 通过 Finnhub API 搜索股票、获取实时报价
-- **图表展示**: TradingView Widget 集成，支持 K 线图和技术指标
+- **图表展示**: TradingView Widget 集成，支持 K 线图和技术指标，支持 A 股/港股代码格式转换
 - **公司信息**: 展示公司概况、财务数据、基本面分析
 - **市场新闻**: 聚合相关新闻和公告
 
@@ -246,6 +247,10 @@ npm start
 - `scripts/inspect-user.mjs` - 检查用户信息
 - `scripts/list-kit-forms.mjs` - 列出 Kit 表单
 
+### 品牌组件
+- `components/SirayBanner.tsx` - Siray 品牌横幅组件（捐赠弹窗、社交链接）
+- `components/OpenDevSocietyBranding.tsx` - Open Dev Society 品牌组件
+
 ## 测试策略
 
 当前项目主要包含：
@@ -339,6 +344,7 @@ npm start
 - 所有 API 密钥应通过环境变量管理
 - MongoDB 连接使用缓存模式优化性能
 - TradingView 组件需要允许 `i.ibb.co` 域名的图片
+- TradingView 集成支持 A 股（如 600519.SS）和港股（如 0005.HK）代码格式自动转换
 - 生产部署时确保正确的环境变量配置
 - 使用 Turbopack 进行快速开发和构建
 - Better Auth Kit 迁移需要运行 `scripts/migrate-users-to-kit.mjs`
@@ -470,6 +476,7 @@ jobs:
 ## 相关文档
 
 - [API 文档](/api-docs) - 完整的 API 参考
+- [API_DOCS.md](./API_DOCS.md) - API 文档 Markdown 版本
 - [README.md](/README.md) - 项目主文档
 - [scripts/CLAUDE.md](./scripts/CLAUDE.md) - 脚本工具详细文档
 - [app/CLAUDE.md](./app/CLAUDE.md) - 应用模块文档
