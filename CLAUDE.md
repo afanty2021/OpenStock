@@ -478,7 +478,10 @@ jobs:
 - [API 文档](/api-docs) - 完整的 API 参考
 - [API_DOCS.md](./API_DOCS.md) - API 文档 Markdown 版本
 - [README.md](/README.md) - 项目主文档
+- [quickstart.md](./quickstart.md) - 环境搭建快速指南（人类可读精简版）
 - [scripts/CLAUDE.md](./scripts/CLAUDE.md) - 脚本工具详细文档
 - [app/CLAUDE.md](./app/CLAUDE.md) - 应用模块文档
 - [components/CLAUDE.md](./components/CLAUDE.md) - 组件库文档
 - [database/CLAUDE.md](./database/CLAUDE.md) - 数据库文档
+
+> **文档同步说明**：环境配置相关变更请同步更新 CLAUDE.md 和 quickstart.md，确保一致性。
