@@ -26,11 +26,21 @@ components/
 │   ├── FooterLink.tsx          # 页脚链接
 │   ├── InputField.tsx          # 输入字段
 │   └── SelectField.tsx         # 选择字段
-├── Header.tsx             # 页头导航
+├── watchlist/              # 观察列表专用组件
+│   ├── AlertsPanel.tsx         # 提醒面板
+│   ├── CreateAlertModal.tsx    # 创建提醒模态框
+│   ├── NewsGrid.tsx            # 新闻网格
+│   ├── TradingViewWatchlist.tsx # TradingView 观察列表
+│   ├── WatchlistManager.tsx    # 观察列表管理器
+│   ├── WatchlistStockChip.tsx  # 股票标签芯片
+│   └── WatchlistTable.tsx      # 观察列表表格
+├── DonatePopup.tsx        # 捐赠弹窗
 ├── Footer.tsx             # 页脚
+├── Header.tsx             # 页头导航
 ├── NavItems.tsx           # 导航项
 ├── OpenDevSocietyBranding.tsx  # 品牌标识
 ├── SearchCommand.tsx      # 搜索命令面板
+├── SirayBanner.tsx        # Siray 品牌横幅
 ├── TradingViewWidget.tsx  # TradingView 图表组件
 ├── UserDropdown.tsx       # 用户下拉菜单
 └── WatchlistButton.tsx    # 收藏夹按钮
@@ -91,6 +101,88 @@ import { Dialog } from "@/components/ui/dialog";
 - **内容**: 用户信息、登出等操作
 - **位置**: 页头右侧
 - **交互**: 点击展开下拉菜单
+
+## 观察列表组件 (watchlist/)
+
+### AlertsPanel
+- **功能**: 展示和管理用户价格提醒
+- **特性**:
+  - 显示所有活跃的价格提醒
+  - 支持删除提醒操作
+  - 实时更新提醒状态
+  - 响应式布局
+
+### CreateAlertModal
+- **功能**: 创建价格提醒的模态对话框
+- **特性**:
+  - 支持设置目标价格
+  - 选择触发条件（高于/低于）
+  - 表单验证和错误处理
+  - 与 alerts.actions.ts 集成
+
+### NewsGrid
+- **功能**: 显示相关新闻网格
+- **特性**:
+  - 响应式网格布局
+  - 显示新闻标题、摘要和时间
+  - 点击跳转到新闻源
+  - 支持按股票筛选
+
+### TradingViewWatchlist
+- **功能**: TradingView 集成的观察列表组件
+- **特性**:
+  - 嵌入 TradingView Watchlist Widget
+  - 支持自定义股票列表
+  - 实时价格更新
+  - 支持添加/删除股票
+
+### WatchlistManager
+- **功能**: 观察列表管理界面
+- **特性**:
+  - 集成 WatchlistTable 和 AlertsPanel
+  - 提供统一的观察列表管理体验
+  - 支持添加、删除、排序操作
+
+### WatchlistStockChip
+- **功能**: 股票标签芯片组件
+- **特性**:
+  - 显示股票代码和公司名称
+  - 可删除交互
+  - 支持自定义样式
+  - 用于观察列表中的股票展示
+
+### WatchlistTable
+- **功能**: 股票观察列表表格
+- **特性**:
+  - 显示股票代码、价格、涨跌幅
+  - 支持排序和筛选
+  - 实时价格更新
+  - 可跳转到股票详情页
+
+## 品牌与营销组件
+
+### SirayBanner
+- **功能**: Siray.ai 品牌横幅组件
+- **特性**:
+  - 捐赠弹窗集成
+  - 社交媒体链接
+  - 响应式设计
+  - 可配置的显示选项
+
+### DonatePopup
+- **功能**: 捐赠弹窗组件
+- **特性**:
+  - 可配置的显示触发条件
+  - 支持关闭和记住用户选择
+  - 集成支付链接
+  - 本地存储用户偏好
+
+### OpenDevSocietyBranding
+- **功能**: Open Dev Society 品牌标识组件
+- **特性**:
+  - 显示组织名称和 Logo
+  - 宣言和使命展示
+  - 链接到社交媒体和网站
 
 ## 设计系统
 

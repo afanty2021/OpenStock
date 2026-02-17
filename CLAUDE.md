@@ -2,8 +2,9 @@
 
 ## 变更记录 (Changelog)
 
+- 2026-02-16 - 更新上下文文档，完善 watchlist 组件模块文档，补充品牌组件说明
 - 2026-02-14 - 新增 SirayBanner 品牌组件，更新 TradingView 股票代码格式转换（A/H股支持），优化帮助和条款页面，移除 spec-workflow 模板
-- 2026-02-10 - 更新至 Next.js 15.5.7 + React 19.1.0，新增股票提醒功能、观察列表增强组件、API 文档页面，添加 10+ 个新脚本
+- 2026-02-10 - 更新至 Next.js 15.5.7 + React 19.1.0，新增股票提醒功能、观察列表增强组件、API 文档页面，添加 11 个脚本工具
 - 2025-12-27 16:00:00 - 更新至 98% 覆盖率，添加 check-env.mjs 环境检查工具文档，更新快速启动流程
 - 2025-12-05 17:30:40 (第二次) - 增量更新至 98.2% 覆盖率，补充 Docker 配置、错误处理、API 文档、环境变量配置等内容
 - 2025-12-05 17:30:40 (第一次) - 初始化 AI 上下文文档，生成根级和模块级文档
@@ -250,6 +251,7 @@ npm start
 ### 品牌组件
 - `components/SirayBanner.tsx` - Siray 品牌横幅组件（捐赠弹窗、社交链接）
 - `components/OpenDevSocietyBranding.tsx` - Open Dev Society 品牌组件
+- `components/DonatePopup.tsx` - 捐赠弹窗组件
 
 ## 测试策略
 
