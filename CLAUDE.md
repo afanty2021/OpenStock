@@ -261,9 +261,6 @@ npm start
 ### 品牌与营销组件
 - `components/SirayBanner.tsx` - Siray 品牌横幅组件（展示合作伙伴，支持关闭）
 - `components/OpenDevSocietyBranding.tsx` - Open Dev Society 品牌组件
-<<<<<<< HEAD
-- `components/DonatePopup.tsx` - 捐赠弹窗组件
-=======
 - `components/DonatePopup.tsx` - 捐赠弹窗组件（GitHub Sponsors，24小时冷却期）
 
 ### 数据模型扩展
