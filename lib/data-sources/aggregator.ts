@@ -172,38 +172,21 @@ export class DataAggregator {
    * @param query 搜索关键词
    * @returns 搜索结果
    */
-  async searchStocks(query: string): Promise<FusedResult<SearchResult[]>> {
+  async searchStocks(query: string): Promise<SearchResult[]> {
     // 优先使用 Finnhub 进行搜索
     const finnhub = this.sources.find((s) => s.name === 'finnhub');
 
     if (!finnhub) {
-      return {
-        symbol: '',
-        name: '',
-        exchange: '',
-        type: '',
-        _source: 'none',
-        _sourceCount: 0,
-      } as FusedResult<SearchResult[]>;
+      return [];
     }
 
     try {
       const result = await finnhub.searchStocks(query);
-      return {
-        ...result.data,
-        _source: finnhub.name,
-        _sourceCount: 1,
-      } as FusedResult<SearchResult[]>;
+      // 返回数组，不添加元数据字段到数组元素
+      return result.data;
     } catch (error) {
-      // Finnhub 失败时返回空结果
-      return {
-        symbol: '',
-        name: '',
-        exchange: '',
-        type: '',
-        _source: 'none',
-        _sourceCount: 0,
-      } as FusedResult<SearchResult[]>;
+      // Finnhub 失败时返回空数组
+      return [];
     }
   }
 
