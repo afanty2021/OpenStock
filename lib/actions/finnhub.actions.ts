@@ -3,6 +3,7 @@
 import { getDateRange, validateArticle, formatArticle } from '@/lib/utils';
 import { POPULAR_STOCK_SYMBOLS } from '@/lib/constants';
 import { cache } from 'react';
+import { dataPipeline } from '@/lib/data-sources';
 
 const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
 const NEXT_PUBLIC_FINNHUB_API_KEY = process.env.NEXT_PUBLIC_FINNHUB_API_KEY ?? '';
@@ -24,10 +25,8 @@ export { fetchJSON };
 
 export async function getQuote(symbol: string) {
     try {
-        const token = NEXT_PUBLIC_FINNHUB_API_KEY;
-        const url = `${FINNHUB_BASE_URL}/quote?symbol=${encodeURIComponent(symbol)}&token=${token}`;
-        // No caching for real-time price
-        return await fetchJSON<any>(url, 0);
+        // 使用 dataPipeline 获取报价数据
+        return await dataPipeline.getQuote(symbol);
     } catch (e) {
         console.error('Error fetching quote for', symbol, e);
         return null;
@@ -36,10 +35,8 @@ export async function getQuote(symbol: string) {
 
 export async function getCompanyProfile(symbol: string) {
     try {
-        const token = NEXT_PUBLIC_FINNHUB_API_KEY;
-        const url = `${FINNHUB_BASE_URL}/stock/profile2?symbol=${encodeURIComponent(symbol)}&token=${token}`;
-        // Cache profile for 24 hours
-        return await fetchJSON<any>(url, 86400);
+        // 使用 dataPipeline 获取公司资料
+        return await dataPipeline.getProfile(symbol);
     } catch (e) {
         console.error('Error fetching profile for', symbol, e);
         return null;
@@ -49,24 +46,39 @@ export async function getCompanyProfile(symbol: string) {
 export async function getWatchlistData(symbols: string[]) {
     if (!symbols || symbols.length === 0) return [];
 
-    // Fetch quotes and profiles in parallel
+    // 使用 dataPipeline 并行获取每个股票的数据
     const promises = symbols.map(async (sym) => {
-        const [quote, profile] = await Promise.all([
-            getQuote(sym),
-            getCompanyProfile(sym)
-        ]);
+        try {
+            const [quote, profile] = await Promise.all([
+                getQuote(sym),
+                getCompanyProfile(sym)
+            ]);
 
-        return {
-            symbol: sym,
-            price: quote?.c || 0,
-            change: quote?.d || 0,
-            changePercent: quote?.dp || 0,
-            currency: profile?.currency || 'USD',
-            name: profile?.name || sym,
-            logo: profile?.logo,
-            marketCap: profile?.marketCapitalization,
-            peRatio: 0 // Finnhub 'quote' and 'profile2' don't easily give real-time PE. Might need 'metric' endpoint, but skipping for now to save rate limits.
-        };
+            return {
+                symbol: sym,
+                price: quote?.c || 0,
+                change: quote?.d || 0,
+                changePercent: quote?.dp || 0,
+                currency: profile?.currency || 'USD',
+                name: profile?.name || sym,
+                logo: profile?.logo,
+                marketCap: profile?.marketCap,
+                peRatio: 0
+            };
+        } catch (e) {
+            console.error('Error fetching watchlist item for', sym, e);
+            return {
+                symbol: sym,
+                price: 0,
+                change: 0,
+                changePercent: 0,
+                currency: 'USD',
+                name: sym,
+                logo: undefined,
+                marketCap: undefined,
+                peRatio: 0
+            };
+        }
     });
 
     return await Promise.all(promises);
@@ -151,79 +163,19 @@ export async function getNews(symbols?: string[]): Promise<MarketNewsArticle[]> 
 
 export const searchStocks = cache(async (query?: string): Promise<StockWithWatchlistStatus[]> => {
     try {
-        const token = NEXT_PUBLIC_FINNHUB_API_KEY;
-        if (!token) {
-            // If no token, log and return empty to avoid throwing per requirements
-            console.error('Error in stock search:', new Error('FINNHUB API key is not configured'));
-            return [];
-        }
-
         const trimmed = typeof query === 'string' ? query.trim() : '';
 
-        let results: FinnhubSearchResult[] = [];
+        // 使用 dataPipeline 搜索股票
+        const searchResults = await dataPipeline.searchStocks(trimmed || undefined);
 
-        if (!trimmed) {
-            // Fetch top 10 popular symbols' profiles
-            const top = POPULAR_STOCK_SYMBOLS.slice(0, 10);
-            const profiles = await Promise.all(
-                top.map(async (sym) => {
-                    try {
-                        const url = `${FINNHUB_BASE_URL}/stock/profile2?symbol=${encodeURIComponent(sym)}&token=${token}`;
-                        // Revalidate every hour
-                        const profile = await fetchJSON<any>(url, 3600);
-                        return { sym, profile } as { sym: string; profile: any };
-                    } catch (e) {
-                        console.error('Error fetching profile2 for', sym, e);
-                        return { sym, profile: null } as { sym: string; profile: any };
-                    }
-                })
-            );
-
-            results = profiles
-                .map(({ sym, profile }) => {
-                    const symbol = sym.toUpperCase();
-                    const name: string | undefined = profile?.name || profile?.ticker || undefined;
-                    const exchange: string | undefined = profile?.exchange || undefined;
-                    if (!name) return undefined;
-                    const r: FinnhubSearchResult = {
-                        symbol,
-                        description: name,
-                        displaySymbol: symbol,
-                        type: 'Common Stock',
-                    };
-                    // We don't include exchange in FinnhubSearchResult type, so carry via mapping later using profile
-                    // To keep pipeline simple, attach exchange via closure map stage
-                    // We'll reconstruct exchange when mapping to final type
-                    (r as any).__exchange = exchange; // internal only
-                    return r;
-                })
-                .filter((x): x is FinnhubSearchResult => Boolean(x));
-        } else {
-            const url = `${FINNHUB_BASE_URL}/search?q=${encodeURIComponent(trimmed)}&token=${token}`;
-            const data = await fetchJSON<FinnhubSearchResponse>(url, 1800);
-            results = Array.isArray(data?.result) ? data.result : [];
-        }
-
-        const mapped: StockWithWatchlistStatus[] = results
-            .map((r) => {
-                const upper = (r.symbol || '').toUpperCase();
-                const name = r.description || upper;
-                const exchangeFromDisplay = (r.displaySymbol as string | undefined) || undefined;
-                const exchangeFromProfile = (r as any).__exchange as string | undefined;
-                const exchange = exchangeFromDisplay || exchangeFromProfile || 'US';
-                const type = r.type || 'Stock';
-                const item: StockWithWatchlistStatus = {
-                    symbol: upper,
-                    name,
-                    exchange,
-                    type,
-                    isInWatchlist: false,
-                };
-                return item;
-            })
-            .slice(0, 15);
-
-        return mapped;
+        // 映射到原有格式
+        return searchResults.map((item) => ({
+            symbol: item.symbol,
+            name: item.name,
+            exchange: item.exchange || 'US',
+            type: item.type || 'Stock',
+            isInWatchlist: false
+        })).slice(0, 15);
     } catch (err) {
         console.error('Error in stock search:', err);
         return [];
