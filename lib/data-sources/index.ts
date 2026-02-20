@@ -31,3 +31,12 @@ export { CacheManager } from './cache';
 
 // 错误处理导出
 export { ErrorType, DataSourceError } from './error-handler';
+
+// 聚合器导出
+export { DataAggregator, dataAggregator } from './aggregator';
+
+// 管道导出
+export { DataPipeline, dataPipeline } from './pipeline';
+
+// 降级策略导出
+export { FallbackStrategy, fallbackStrategy, FallbackLevel } from './fallback';
