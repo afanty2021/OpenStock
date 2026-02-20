@@ -42,3 +42,6 @@ next-env.d.ts
 
 # spec-workflow
 .spec-workflow
+
+# git worktrees
+.worktrees/
