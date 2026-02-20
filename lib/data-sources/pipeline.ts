@@ -13,6 +13,8 @@
 
 import { dataAggregator } from './aggregator';
 import { CacheManager } from './cache';
+import { telemetryCollector } from './monitoring';
+import { createLogger } from './logger';
 import type {
   QuoteData,
   ProfileData,
@@ -61,6 +63,7 @@ export class DataPipeline {
   private cache: CacheManager;
   private stats: PipelineStats;
   private options: Required<PipelineOptions>;
+  private logger = createLogger('DataPipeline');
 
   /**
    * 默认配置
@@ -81,6 +84,14 @@ export class DataPipeline {
       totalRequests: 0,
       timeouts: 0,
     };
+
+    // 记录初始化
+    this.logger.info('DataPipeline 初始化完成', {
+      cacheTTL: this.options.cacheTTL,
+      timeout: this.options.timeout,
+      disableCache: this.options.disableCache,
+      enableStats: this.options.enableStats,
+    });
   }
 
   /**
@@ -100,38 +111,50 @@ export class DataPipeline {
     symbol: string,
     options?: PipelineOptions
   ): Promise<QuoteData> {
-    const opts = { ...this.options, ...options };
-    const cacheKey = CacheManager.keys.quote(symbol);
+    return await this.logger.logPerformance('getQuote', async () => {
+      const opts = { ...this.options, ...options };
+      const cacheKey = CacheManager.keys.quote(symbol);
 
-    // 阶段 1: 检查缓存
-    const cached = this.cache.get(cacheKey);
-    if (cached) {
-      this.recordCacheHit();
-      this.log('cache-hit', { symbol, cacheKey });
-      return cached;
-    }
+      // 阶段 1: 检查缓存
+      this.logger.debug('检查缓存', { symbol, cacheKey });
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        this.recordCacheHit();
+        telemetryCollector.recordCacheHit();
+        this.logger.debug('缓存命中', { symbol, cacheKey });
+        return cached;
+      }
 
-    this.recordCacheMiss();
-    this.log('cache-miss', { symbol, cacheKey });
+      this.recordCacheMiss();
+      telemetryCollector.recordCacheMiss();
+      this.logger.debug('缓存未命中', { symbol, cacheKey });
 
-    // 阶段 2-5: 使用聚合器获取数据（带超时）
-    const result = await this.withTimeout(
-      dataAggregator.getQuote(symbol),
-      opts.timeout,
-      `getQuote(${symbol})`
-    );
+      // 阶段 2-5: 使用聚合器获取数据（带超时）
+      const result = await this.withTimeout(
+        dataAggregator.getQuote(symbol),
+        opts.timeout,
+        `getQuote(${symbol})`
+      );
 
-    // 阶段 6: 写入缓存
-    this.cache.set(cacheKey, result, opts.cacheTTL);
-    this.log('data-fetched', {
-      symbol,
-      source: result._source,
-      sourceCount: result._sourceCount,
-      price: result.c,
-      change: result.dp,
+      // 阶段 6: 写入缓存
+      this.cache.set(cacheKey, result, opts.cacheTTL);
+
+      // 记录数据源选择和融合信息
+      this.logger.info('数据获取完成', {
+        symbol,
+        source: result._source,
+        sourceCount: result._sourceCount,
+        price: (result as any).c,
+        change: (result as any).dp,
+      });
+
+      // 记录融合指标
+      if (result._sourceCount && result._sourceCount > 1) {
+        telemetryCollector.recordAggregation(result._sourceCount);
+      }
+
+      return result;
     });
-
-    return result;
   }
 
   /**
@@ -145,36 +168,48 @@ export class DataPipeline {
     symbol: string,
     options?: PipelineOptions
   ): Promise<ProfileData> {
-    const opts = { ...this.options, ...options };
-    const cacheKey = CacheManager.keys.profile(symbol);
+    return await this.logger.logPerformance('getProfile', async () => {
+      const opts = { ...this.options, ...options };
+      const cacheKey = CacheManager.keys.profile(symbol);
 
-    // 阶段 1: 检查缓存
-    const cached = this.cache.get(cacheKey);
-    if (cached) {
-      this.recordCacheHit();
-      this.log('cache-hit', { symbol, cacheKey });
-      return cached;
-    }
+      // 阶段 1: 检查缓存
+      this.logger.debug('检查缓存', { symbol, cacheKey });
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        this.recordCacheHit();
+        telemetryCollector.recordCacheHit();
+        this.logger.debug('缓存命中', { symbol, cacheKey });
+        return cached;
+      }
 
-    this.recordCacheMiss();
-    this.log('cache-miss', { symbol, cacheKey });
+      this.recordCacheMiss();
+      telemetryCollector.recordCacheMiss();
+      this.logger.debug('缓存未命中', { symbol, cacheKey });
 
-    // 阶段 2-5: 获取数据（带超时）
-    const result = await this.withTimeout(
-      dataAggregator.getProfile(symbol),
-      opts.timeout,
-      `getProfile(${symbol})`
-    );
+      // 阶段 2-5: 获取数据（带超时）
+      const result = await this.withTimeout(
+        dataAggregator.getProfile(symbol),
+        opts.timeout,
+        `getProfile(${symbol})`
+      );
 
-    // 阶段 6: 写入缓存
-    this.cache.set(cacheKey, result, opts.cacheTTL);
-    this.log('data-fetched', {
-      symbol,
-      source: result._source,
-      sourceCount: result._sourceCount,
+      // 阶段 6: 写入缓存
+      this.cache.set(cacheKey, result, opts.cacheTTL);
+
+      // 记录数据源选择和融合信息
+      this.logger.info('公司资料获取完成', {
+        symbol,
+        source: result._source,
+        sourceCount: result._sourceCount,
+      });
+
+      // 记录融合指标
+      if (result._sourceCount && result._sourceCount > 1) {
+        telemetryCollector.recordAggregation(result._sourceCount);
+      }
+
+      return result;
     });
-
-    return result;
   }
 
   /**
@@ -188,22 +223,26 @@ export class DataPipeline {
     query: string,
     options?: PipelineOptions
   ): Promise<SearchResult[]> {
-    const opts = { ...this.options, ...options };
+    return await this.logger.logPerformance('searchStocks', async () => {
+      const opts = { ...this.options, ...options };
 
-    // 搜索结果通常不缓存（结果变化快）
-    const result = await this.withTimeout(
-      dataAggregator.searchStocks(query),
-      opts.timeout,
-      `searchStocks(${query})`
-    );
+      // 搜索结果通常不缓存（结果变化快）
+      const result = await this.withTimeout(
+        dataAggregator.searchStocks(query),
+        opts.timeout,
+        `searchStocks(${query})`
+      );
 
-    this.log('search-complete', {
-      query,
-      resultCount: Array.isArray(result) ? result.length : 0,
+      const resultCount = Array.isArray(result) ? result.length : 0;
+
+      this.logger.info('股票搜索完成', {
+        query,
+        resultCount,
+      });
+
+      // 返回数组或空数组
+      return Array.isArray(result) ? result : [];
     });
-
-    // 返回数组或空数组
-    return Array.isArray(result) ? result : [];
   }
 
   /**
@@ -217,36 +256,48 @@ export class DataPipeline {
     symbol: string,
     options?: PipelineOptions
   ): Promise<FinancialData> {
-    const opts = { ...this.options, ...options };
-    const cacheKey = CacheManager.keys.financials(symbol);
+    return await this.logger.logPerformance('getFinancials', async () => {
+      const opts = { ...this.options, ...options };
+      const cacheKey = CacheManager.keys.financials(symbol);
 
-    // 阶段 1: 检查缓存
-    const cached = this.cache.get(cacheKey);
-    if (cached) {
-      this.recordCacheHit();
-      this.log('cache-hit', { symbol, cacheKey });
-      return cached;
-    }
+      // 阶段 1: 检查缓存
+      this.logger.debug('检查缓存', { symbol, cacheKey });
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        this.recordCacheHit();
+        telemetryCollector.recordCacheHit();
+        this.logger.debug('缓存命中', { symbol, cacheKey });
+        return cached;
+      }
 
-    this.recordCacheMiss();
-    this.log('cache-miss', { symbol, cacheKey });
+      this.recordCacheMiss();
+      telemetryCollector.recordCacheMiss();
+      this.logger.debug('缓存未命中', { symbol, cacheKey });
 
-    // 阶段 2-5: 获取数据（带超时）
-    const result = await this.withTimeout(
-      dataAggregator.getFinancials(symbol),
-      opts.timeout,
-      `getFinancials(${symbol})`
-    );
+      // 阶段 2-5: 获取数据（带超时）
+      const result = await this.withTimeout(
+        dataAggregator.getFinancials(symbol),
+        opts.timeout,
+        `getFinancials(${symbol})`
+      );
 
-    // 阶段 6: 写入缓存
-    this.cache.set(cacheKey, result, opts.cacheTTL);
-    this.log('data-fetched', {
-      symbol,
-      source: result._source,
-      period: result.period,
+      // 阶段 6: 写入缓存
+      this.cache.set(cacheKey, result, opts.cacheTTL);
+
+      // 记录数据源选择和融合信息
+      this.logger.info('财务数据获取完成', {
+        symbol,
+        source: result._source,
+        period: (result as any).period,
+      });
+
+      // 记录融合指标
+      if (result._sourceCount && result._sourceCount > 1) {
+        telemetryCollector.recordAggregation(result._sourceCount);
+      }
+
+      return result;
     });
-
-    return result;
   }
 
   /**
@@ -260,20 +311,32 @@ export class DataPipeline {
     symbols: string[],
     options?: PipelineOptions
   ): Promise<QuoteData[]> {
-    const opts = { ...this.options, ...options };
+    return await this.logger.logPerformance('getBatchQuotes', async () => {
+      const opts = { ...this.options, ...options };
 
-    // 并行获取所有报价
-    const results = await Promise.all(
-      symbols.map((symbol) =>
-        this.getQuote(symbol, opts).catch((error) => {
-          this.log('batch-error', { symbol, error: error.message });
-          return null;
-        })
-      )
-    );
+      this.logger.info('开始批量获取报价', { symbolsCount: symbols.length });
 
-    // 过滤掉失败的结果
-    return results.filter((r): r is QuoteData => r !== null);
+      // 并行获取所有报价
+      const results = await Promise.all(
+        symbols.map((symbol) =>
+          this.getQuote(symbol, opts).catch((error) => {
+            this.logger.error('批量获取失败', new Error(`获取 ${symbol} 失败: ${error.message}`));
+            return null;
+          })
+        )
+      );
+
+      const successCount = results.filter((r): r is QuoteData => r !== null).length;
+
+      this.logger.info('批量获取完成', {
+        total: symbols.length,
+        success: successCount,
+        failed: symbols.length - successCount,
+      });
+
+      // 过滤掉失败的结果
+      return results.filter((r): r is QuoteData => r !== null);
+    });
   }
 
   /**
@@ -283,7 +346,7 @@ export class DataPipeline {
    */
   invalidateCache(pattern: string): void {
     this.cache.invalidate(pattern);
-    this.log('cache-invalidated', { pattern });
+    this.logger.info('缓存失效', { pattern });
   }
 
   /**
@@ -291,7 +354,7 @@ export class DataPipeline {
    */
   clearCache(): void {
     this.cache.clear();
-    this.log('cache-cleared', {});
+    this.logger.info('缓存已清空');
   }
 
   /**
@@ -343,12 +406,23 @@ export class DataPipeline {
       this.stats.totalRequests++;
     }
 
+    const startTime = Date.now();
+
     // 创建超时 Promise
     const timeoutPromise = new Promise<T>((_, reject) => {
       const timer = setTimeout(() => {
         if (this.options.enableStats) {
           this.stats.timeouts++;
         }
+
+        // 记录超时降级事件
+        telemetryCollector.recordFallback('timeout');
+
+        this.logger.warn('操作超时', {
+          operation,
+          timeout: timeoutMs,
+        });
+
         reject(new Error(`Operation timeout: ${operation} exceeded ${timeoutMs}ms`));
       }, timeoutMs);
 
@@ -358,12 +432,19 @@ export class DataPipeline {
 
     // 使用 Promise.race 实现超时控制
     try {
-      return await Promise.race([promise, timeoutPromise]);
+      const result = await Promise.race([promise, timeoutPromise]);
+
+      // 记录成功的请求指标
+      const duration = Date.now() - startTime;
+      telemetryCollector.recordRequest('DataPipeline', duration, true);
+
+      return result;
     } catch (error) {
-      this.log('operation-error', {
-        operation,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      // 记录失败的请求指标
+      const duration = Date.now() - startTime;
+      telemetryCollector.recordRequest('DataPipeline', duration, false);
+
+      this.logger.error('操作失败', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
@@ -385,20 +466,6 @@ export class DataPipeline {
     if (this.options.enableStats) {
       this.stats.cacheMisses++;
       this.stats.totalRequests++;
-    }
-  }
-
-  /**
-   * 日志记录
-   *
-   * @param level 日志级别
-   * @param data 日志数据
-   */
-  private log(level: string, data: Record<string, unknown>): void {
-    if (process.env.NODE_ENV === 'development' || process.env.LOG_LEVEL === 'debug') {
-      const timestamp = new Date().toISOString();
-      // eslint-disable-next-line no-console
-      console.log(`[DataPipeline ${timestamp}] ${level}:`, data);
     }
   }
 }

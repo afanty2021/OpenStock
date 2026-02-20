@@ -17,6 +17,16 @@ lib/
 │   └── watchlist.actions.ts # 收藏夹操作
 ├── better-auth/            # Better Auth 配置
 │   └── auth.ts           # 认证实例和配置
+├── data-sources/          # 多数据源聚合系统
+│   ├── aggregator.ts     # 数据聚合器
+│   ├── pipeline.ts       # 数据流管道
+│   ├── sources/          # 数据源适配器
+│   ├── monitoring.ts     # 监控指标
+│   ├── logger.ts         # 日志系统
+│   ├── utils.ts          # 性能优化工具
+│   ├── cache.ts          # 缓存管理器
+│   ├── fallback.ts       # 降级策略
+│   └── types.ts          # 类型定义
 ├── inngest/               # Inngest 自动化
 │   ├── client.ts         # Inngest 客户端
 │   ├── functions.ts      # 工作流定义
@@ -68,6 +78,53 @@ Finnhub API 集成：
 - 获取用户信息
 - 更新用户设置
 - 获取邮件订阅用户列表
+
+## 多数据源聚合系统 (data-sources/)
+
+多数据源聚合系统，集成 Finnhub、Tushare、Alpha Vantage 三个数据源。
+
+**核心功能**：
+- 智能数据源路由（按市场自动选择）
+- 数据融合（质量加权平均）
+- 三级降级策略
+- L1 内存缓存（60秒 TTL）
+
+**主要文件**：
+
+| 文件 | 职责 |
+|------|------|
+| aggregator.ts | 数据聚合器，协调数据源请求和融合 |
+| pipeline.ts | 数据流管道，处理缓存和降级 |
+| sources/ | 数据源适配器（Finnhub、Tushare、Alpha Vantage）|
+| monitoring.ts | 监控指标收集和报告 |
+| logger.ts | 结构化日志系统 |
+| utils.ts | 性能优化工具（去重、批处理、分组）|
+| cache.ts | L1 内存缓存管理器 |
+| fallback.ts | 三级降级策略实现 |
+| types.ts | 类型定义和质量评分系统 |
+
+**环境变量**：
+```env
+# 数据源 API 密钥
+TUSHARE_API_TOKEN=your_tushare_token
+ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
+FINNHUB_API_KEY=your_finnhub_key
+
+# 缓存配置
+DATA_SOURCE_CACHE_ENABLED=true
+DATA_SOURCE_CACHE_TTL=60
+```
+
+**使用示例**：
+```typescript
+import { dataAggregator } from '@/lib/data-sources';
+
+// 获取股票报价（自动选择数据源、并行请求、融合结果）
+const quote = await dataAggregator.getQuote('AAPL');
+
+// 获取公司资料
+const profile = await dataAggregator.getProfile('600519.SS');
+```
 
 ## 自动化系统 (inngest/)
 
@@ -184,10 +241,11 @@ MONGODB_URI=your_mongodb_uri
 
 ## 扩展建议
 
-1. **添加更多数据源**
-   - Alpha Vantage 集成
-   - Yahoo Finance 集成
-   - 多数据源聚合
+1. **增强多数据源系统**
+   - 添加更多数据源（Yahoo Finance、Bloomberg）
+   - 实现分布式缓存（Redis）
+   - 添加实时数据推送（WebSocket）
+   - 实现数据源健康检查
 
 2. **增强 AI 功能**
    - 股票推荐

@@ -40,3 +40,26 @@ export { DataPipeline, dataPipeline } from './pipeline';
 
 // 降级策略导出
 export { FallbackStrategy, fallbackStrategy, FallbackLevel } from './fallback';
+
+// 监控指标导出
+export {
+  TelemetryCollector,
+  telemetryCollector,
+  monitorPerformance,
+  type TelemetryMetrics,
+  type CacheMetrics,
+  type AggregationMetrics,
+  type SystemHealth,
+  type TelemetryConfig,
+} from './monitoring';
+
+// 日志记录器导出
+export {
+  DataSourceLogger,
+  ChildLogger,
+  logger,
+  createLogger,
+  LogLevel,
+  type LogEntry,
+  type LoggerConfig,
+} from './logger';
