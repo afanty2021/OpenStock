@@ -2,6 +2,8 @@
 
 ## 变更记录 (Changelog)
 
+- 2026-02-21 - 同步代码库最新状态，添加多数据源聚合系统设计文档，完善模块索引
+- 2026-02-20 - 全面更新 CLAUDE.md 文档，同步最新代码库结构，完善模块化文档体系
 - 2026-02-18 - 全面更新 CLAUDE.md 文档，同步最新代码库结构，验证模块完整性
 - 2026-02-17 - 更新项目结构和文档，补充最新组件和功能说明，优化 AI 上下文
 - 2026-02-16 - 更新上下文文档，完善 watchlist 组件模块文档，补充品牌组件说明
@@ -89,7 +91,7 @@ graph TD
 
     G --> G1["index.ts"];
 
-    H --> H1["脚本目录 (12+ 脚本)"];
+    H --> H1["脚本目录 (13 个脚本)"];
 
     I --> I1["assets/icons"];
     I --> I2["assets/images"];
@@ -108,18 +110,50 @@ graph TD
 | 模块路径 | 职责描述 | 主要技术栈 |
 |---------|---------|-----------|
 | app | Next.js App Router 应用主体，包含页面路由和 API 路由 | Next.js, React, TypeScript |
+| app/(auth) | 认证路由组（登录、注册页面） | Next.js, Better Auth |
+| app/(root) | 主应用路由组（首页、股票详情、观察列表等） | Next.js |
 | components | React UI 组件库，包含通用组件和业务组件 | React, Tailwind CSS, shadcn/ui |
+| components/ui | shadcn/ui 基础组件库 | Radix UI, Tailwind CSS |
 | components/watchlist | 观察列表专用组件（表格、提醒、新闻等） | React, TradingView API |
+| components/forms | 表单组件库 | React, React Hook Form |
 | database | 数据库连接和 Mongoose 模型定义 | MongoDB, Mongoose |
 | database/models | 数据模型定义（User, Watchlist, Alert） | TypeScript, Mongoose |
 | lib | 核心业务逻辑，包含 actions、认证、集成等 | TypeScript, Better Auth, Inngest |
-| lib/actions | Server Actions（alert, auth, finnhub, watchlist） | TypeScript |
+| lib/actions | Server Actions（alert, auth, finnhub, watchlist, user） | TypeScript |
+| lib/better-auth | Better Auth 配置和集成 | TypeScript, Better Auth |
 | lib/kit.ts | Better Auth 与第三方集成的适配层 | TypeScript |
+| lib/inngest | Inngest 自动化工作流 | TypeScript, Inngest |
+| lib/nodemailer | 邮件服务集成 | TypeScript, Nodemailer |
+| lib/data-sources | 🚧 多数据源聚合系统（开发中） | TypeScript |
 | hooks | React 自定义 Hooks | React, TypeScript |
 | middleware | Next.js 中间件，处理路由保护 | Next.js |
-| scripts | 构建和部署脚本（10+ 个） | Node.js |
+| scripts | 构建和部署脚本（13 个） | Node.js |
 | public | 静态资源文件 | 图片、图标 |
 | types | TypeScript 类型定义 | TypeScript |
+| docs/plans | 设计文档和计划 | Markdown |
+
+### 模块化文档结构
+
+项目采用多层级 CLAUDE.md 文档体系，便于细粒度维护：
+
+- [app/CLAUDE.md](./app/CLAUDE.md) - App Router 结构详解
+- [app/(auth)/CLAUDE.md](./app/(auth)/CLAUDE.md) - 认证模块文档
+- [app/(root)/CLAUDE.md](./app/(root)/CLAUDE.md) - 主应用路由文档
+- [app/(root)/stocks/[symbol]/CLAUDE.md](./app/(root)/stocks/[symbol]/CLAUDE.md) - 股票详情页文档
+- [app/(root)/watchlist/CLAUDE.md](./app/(root)/watchlist/CLAUDE.md) - 观察列表页文档
+- [components/CLAUDE.md](./components/CLAUDE.md) - 组件库总览
+- [components/ui/CLAUDE.md](./components/ui/CLAUDE.md) - UI 组件文档
+- [components/watchlist/CLAUDE.md](./components/watchlist/CLAUDE.md) - 观察列表组件文档
+- [database/CLAUDE.md](./database/CLAUDE.md) - 数据库层文档
+- [database/models/CLAUDE.md](./database/models/CLAUDE.md) - 数据模型文档
+- [lib/CLAUDE.md](./lib/CLAUDE.md) - 核心库文档
+- [lib/actions/CLAUDE.md](./lib/actions/CLAUDE.md) - Server Actions 文档
+- [lib/better-auth/CLAUDE.md](./lib/better-auth/CLAUDE.md) - Better Auth 配置文档
+- [hooks/CLAUDE.md](./hooks/CLAUDE.md) - 自定义 Hooks 文档
+- [middleware/CLAUDE.md](./middleware/CLAUDE.md) - Next.js 中间件文档
+- [public/CLAUDE.md](./public/CLAUDE.md) - 公共资源文档
+- [scripts/CLAUDE.md](./scripts/CLAUDE.md) - 脚本工具文档
+- [types/CLAUDE.md](./types/CLAUDE.md) - TypeScript 类型定义文档
 
 ## 核心功能模块
 
@@ -267,7 +301,6 @@ npm start
 ### 数据模型扩展
 - `database/models/alert.model.ts` - 价格提醒数据模型（支持上/下限条件，90天有效期）
 - `lib/actions/alert.actions.ts` - 提醒系统 Server Actions（创建、查询、删除、切换状态）
->>>>>>> f8043f01090669e56c9e87a91cd3b48475f5fbf6
 
 ## 测试策略
 
@@ -368,10 +401,11 @@ npm start
 - Better Auth Kit 迁移需要运行 `scripts/migrate-users-to-kit.mjs`
 
 ### 扩展建议
-1. **添加更多数据源**
-   - Alpha Vantage API
-   - Yahoo Finance API
-   - 多数据源聚合和对比
+1. **添加更多数据源** 🚧 进行中
+   - **多数据源聚合系统**：Finnhub + Tushare + Alpha Vantage
+   - 设计文档已创建：`docs/plans/2026-02-20-data-source-aggregation-design.md`
+   - Git worktree 开发分支：`.worktrees/data-source-aggregation/`
+   - 包含智能路由、数据融合、质量评分、故障转移等核心功能
 
 2. **实现实时功能**
    - WebSocket 连接
@@ -497,14 +531,27 @@ jobs:
 - [API_DOCS.md](./API_DOCS.md) - API 文档 Markdown 版本
 - [README.md](/README.md) - 项目主文档
 - [quickstart.md](./quickstart.md) - 环境搭建快速指南（人类可读精简版）
+
+### 模块化 CLAUDE.md 文档
+
+- [app/CLAUDE.md](./app/CLAUDE.md) - App Router 结构详解
+- [app/(auth)/CLAUDE.md](./app/(auth)/CLAUDE.md) - 认证模块文档
+- [app/(root)/CLAUDE.md](./app/(root)/CLAUDE.md) - 主应用路由文档
+- [app/(root)/stocks/[symbol]/CLAUDE.md](./app/(root)/stocks/[symbol]/CLAUDE.md) - 股票详情页文档
+- [app/(root)/watchlist/CLAUDE.md](./app/(root)/watchlist/CLAUDE.md) - 观察列表页文档
+- [components/CLAUDE.md](./components/CLAUDE.md) - 组件库总览
+- [components/ui/CLAUDE.md](./components/ui/CLAUDE.md) - UI 组件文档
+- [components/watchlist/CLAUDE.md](./components/watchlist/CLAUDE.md) - 观察列表组件文档
+- [database/CLAUDE.md](./database/CLAUDE.md) - 数据库层文档
+- [database/models/CLAUDE.md](./database/models/CLAUDE.md) - 数据模型文档
+- [lib/CLAUDE.md](./lib/CLAUDE.md) - 核心库文档
+- [lib/actions/CLAUDE.md](./lib/actions/CLAUDE.md) - Server Actions 文档
+- [hooks/CLAUDE.md](./hooks/CLAUDE.md) - 自定义 Hooks 文档
 - [scripts/CLAUDE.md](./scripts/CLAUDE.md) - 脚本工具详细文档
-- [app/CLAUDE.md](./app/CLAUDE.md) - 应用模块文档
-- [components/CLAUDE.md](./components/CLAUDE.md) - 组件库文档
-- [database/CLAUDE.md](./database/CLAUDE.md) - 数据库文档
 
 > **文档同步说明**：环境配置相关变更请同步更新 CLAUDE.md 和 quickstart.md，确保一致性。
 
-## 项目统计信息 (2026-02-17)
+## 项目统计信息 (2026-02-21)
 
 ### 代码组成
 - **TypeScript**: 93.4% - 主要开发语言
@@ -512,28 +559,33 @@ jobs:
 - **JavaScript**: 0.6% - 配置和脚本文件
 
 ### 文件结构统计
-- **React 组件**: 30+ 个组件
-- **Server Actions**: 5+ 个 action 文件
-- **数据模型**: 2 个 Mongoose 模型 (User, Watchlist, Alert)
-- **页面路由**: 10+ 个页面
-- **工具脚本**: 12+ 个管理脚本
+- **React 组件**: 40+ 个组件（含 UI、表单、观察列表）
+- **Server Actions**: 5 个 action 文件（alert, auth, finnhub, user, watchlist）
+- **数据模型**: 3 个 Mongoose 模型（User, Watchlist, Alert）
+- **页面路由**: 11 个页面
+- **工具脚本**: 13 个管理脚本
+- **CLAUDE.md 文档**: 17 个模块化文档
+- **设计文档**: 1 个多数据源聚合系统设计文档
 
 ### 依赖包统计
-- **生产依赖**: 25 个核心包
+- **生产依赖**: 26 个核心包
 - **开发依赖**: 11 个工具包
 - **UI 组件**: 9 个 Radix UI 组件
 - **总大小**: ~500MB (node_modules)
 
 ### 核心技术亮点
-1. **Next.js 15**: 最新版本 App Router + Server Components
-2. **React 19**: 最新 React 特性和性能优化
-3. **Better Auth**: 现代化认证解决方案
+1. **Next.js 15.5.7**: 最新版本 App Router + Server Components + Turbopack
+2. **React 19.1.0**: 最新 React 特性和性能优化
+3. **Better Auth 1.3.25**: 现代化认证解决方案，支持 Kit 扩展
 4. **Tailwind CSS v4**: 最新版本的实用优先 CSS 框架
-5. **TypeScript**: 完整的类型安全
-6. **Mongoose**: MongoDB ODM，提供丰富的数据建模功能
+5. **TypeScript 5**: 完整的类型安全
+6. **Mongoose 8.19**: MongoDB ODM，提供丰富的数据建模功能
+7. **Inngest 3.47**: 事件驱动自动化框架
+8. **MongoDB 6.20**: 最新版本的 MongoDB 驱动
 
 ### 开发活跃度
-- **最后更新**: 2026-02-17
+- **最后更新**: 2026-02-21
 - **提交频率**: 活跃开发中
 - **版本**: 0.1.0 (pre-release)
 - **状态**: Beta 阶段，功能持续完善中
+- **开发分支**: data-source-aggregation（多数据源聚合系统）
