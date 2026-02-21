@@ -22,6 +22,9 @@ export { BaseDataSource } from './base';
 export { FinnhubSource } from './sources/finnhub';
 export { TushareSource } from './sources/tushare';
 export { AlphaVantageSource } from './sources/alpha-vantage';
+export { YahooFinanceV2Source as YahooFinanceSource } from './sources/yahoo-finance-v2';
+export { TencentFinanceSource } from './sources/tencent-finance';
+export { SinaFinanceSource } from './sources/sina-finance';
 
 // 配置导出
 export { SOURCE_CONFIG, SYSTEM_CONFIG, StockCodeValidator } from './config';
@@ -63,3 +66,49 @@ export {
   type LogEntry,
   type LoggerConfig,
 } from './logger';
+
+// 告警系统导出
+export type {
+  AlertLevel,
+  AlertStatus,
+  NotificationChannel,
+  Alert,
+  AlertRule,
+  SuppressionConfig,
+  HealthStatus,
+  SourceHealthStatus,
+  FailoverConfig,
+  AdaptiveCheckConfig,
+  EmailParams,
+  ToastParams,
+  AlertHistoryRecord,
+  MonitoringLogRecord,
+} from './alerting/types';
+
+export {
+  alertRulesEngine,
+  ALERT_RULES,
+  AlertRulesEngine,
+} from './alerting/rules-engine';
+
+export {
+  alertManager,
+  AlertManager,
+} from './alerting/alert-manager';
+
+export {
+  alertNotifier,
+  AlertNotifier,
+  getPendingToasts,
+  consumeToast,
+} from './alerting/notifier';
+
+export {
+  adaptiveHealthChecker,
+  AdaptiveHealthChecker,
+} from './alerting/health-checker';
+
+export {
+  failoverManager,
+  FailoverManager,
+} from './alerting/failover';

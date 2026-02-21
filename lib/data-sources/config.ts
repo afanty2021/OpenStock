@@ -27,6 +27,12 @@ export const SOURCE_CONFIG = {
     capabilities: { quote: true, profile: true, news: false, financials: true },
     reliability: 85,
   },
+  yahooFinance: {
+    priority: 1, // 港股首选，美股/A股备用
+    markets: ['US', 'CN', 'HK', 'GLOBAL'],
+    capabilities: { quote: true, profile: true, news: false, financials: true },
+    reliability: 82, // 使用库，较稳定
+  },
 } as const;
 
 /**

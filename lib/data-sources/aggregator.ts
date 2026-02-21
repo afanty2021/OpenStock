@@ -16,6 +16,7 @@ import type {
 import { FinnhubSource } from './sources/finnhub';
 import { TushareSource } from './sources/tushare';
 import { AlphaVantageSource } from './sources/alpha-vantage';
+// import { YahooFinanceV2Source as YahooFinanceSource } from './sources/yahoo-finance-v2'; // 暂时禁用
 import { StockCodeValidator } from './config';
 
 /**
@@ -50,6 +51,7 @@ export class DataAggregator {
       new FinnhubSource(),
       new TushareSource(),
       new AlphaVantageSource(),
+      // new YahooFinanceSource(), // 暂时禁用，集成复杂
     ];
 
     // 按优先级排序（数字越小优先级越高）

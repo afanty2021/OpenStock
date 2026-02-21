@@ -10,4 +10,11 @@
 | #4587 | 8:22 AM | 🔵 | Watchlist data model documented | ~279 |
 | #4580 | 8:21 AM | 🔵 | Alert data model documented | ~262 |
 | #4578 | " | 🔵 | TypeScript files catalogued across project | ~319 |
+
+### Feb 21, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #5148 | 1:19 PM | 🔵 | Alert history database model schema reviewed | ~376 |
+| #5129 | 1:08 PM | 🟣 | Database models created for alert history and monitoring logs | ~429 |
 </claude-mem-context>
