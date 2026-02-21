@@ -7,7 +7,9 @@ if (!process.env.NODEMAILER_EMAIL || !process.env.NODEMAILER_PASSWORD) {
 }
 
 export const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.qq.com',
+    port: 465,
+    secure: true,
     auth: {
         user: process.env.NODEMAILER_EMAIL!,
         pass: process.env.NODEMAILER_PASSWORD!,
