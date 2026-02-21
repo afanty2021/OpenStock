@@ -99,7 +99,6 @@ export class TushareSource extends BaseDataSource {
           token: this.token,
           params: {
             ts_code: tsCode,
-            trade_date: this.getLatestTradeDate(),
           },
           fields: 'ts_code,trade_date,open,high,low,close,pre_close,vol,amount'
         })
@@ -288,12 +287,33 @@ export class TushareSource extends BaseDataSource {
 
   /**
    * 获取最新交易日期（Tushare 格式：YYYYMMDD）
+   *
+   * 回退到最近的过去交易日，避免使用未来日期
    */
   private getLatestTradeDate(): string {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
+    let date = new Date();
+
+    // 获取星期几（0=周日, 6=周六）
+    const dayOfWeek = date.getDay();
+
+    // 如果是周日（0），回退 2 天到周五
+    if (dayOfWeek === 0) {
+      date.setDate(date.getDate() - 2);
+    }
+    // 如果是周六（6），回退 1 天到周五
+    else if (dayOfWeek === 6) {
+      date.setDate(date.getDate() - 1);
+    }
+
+    // 如果当前时间较早（凌晨），可能市场还没开盘，使用前一天的日期
+    const hour = date.getHours();
+    if (hour < 9) {
+      date.setDate(date.getDate() - 1);
+    }
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     return `${year}${month}${day}`;
   }
 

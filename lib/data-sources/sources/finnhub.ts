@@ -38,12 +38,12 @@ export class FinnhubSource extends BaseDataSource {
 
   /**
    * 判断是否支持该股票代码
-   * Finnhub 不支持中国股票
+   * Finnhub 支持美股和国际股票，包括港股
+   * 不支持 A 股
    */
   supportsSymbol(symbol: string): boolean {
-    // 不支持 A 股和港股
-    return !StockCodeValidator.isAStock(symbol) &&
-           !StockCodeValidator.isHKStock(symbol);
+    // 支持港股，不支持 A 股
+    return !StockCodeValidator.isAStock(symbol);
   }
 
   /**
