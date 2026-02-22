@@ -50,7 +50,7 @@ NEXT_PUBLIC_FINNHUB_API_KEY // Finnhub 公开 API 密钥
 FINNHUB_BASE_URL            // Finnhub API 基础 URL
 
 // Inngest 自动化
-GEMINI_API_KEY              // Google Gemini AI 密钥
+MINIMAX_API_KEY             // MiniMax AI 密钥
 INNGEST_SIGNING_KEY         // Inngest 签名密钥 (Vercel 部署)
 
 // 邮件服务

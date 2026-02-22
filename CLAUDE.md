@@ -219,8 +219,8 @@ ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
 DATA_SOURCE_CACHE_ENABLED=true
 DATA_SOURCE_CACHE_TTL=60
 
-# Gemini AI
-GEMINI_API_KEY=your_gemini_api_key
+# MiniMax AI (邮件内容生成、新闻摘要)
+MINIMAX_API_KEY=your_minimax_api_key
 
 # Inngest (Vercel 部署时需要)
 INNGEST_SIGNING_KEY=your_inngest_signing_key

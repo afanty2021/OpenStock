@@ -136,7 +136,7 @@ Inngest 客户端配置，连接到 Inngest 服务。
 
 1. **用户欢迎邮件** (`sendSignUpEmail`)
    - 触发事件: `app/user.created`
-   - 使用 Gemini AI 生成个性化欢迎语
+   - 使用 MiniMax AI 生成个性化欢迎语
    - 发送 HTML 格式邮件
 
 2. **每日新闻摘要** (`sendDailyNewsSummary`)
@@ -214,8 +214,8 @@ BETTER_AUTH_URL=http://localhost:3000
 FINNHUB_API_KEY=your_key
 NEXT_PUBLIC_FINNHUB_API_KEY=public_key
 
-# Gemini AI
-GEMINI_API_KEY=your_gemini_key
+# MiniMax AI
+MINIMAX_API_KEY=your_minimax_api_key
 
 # Email Service
 NODEMAILER_EMAIL=your_email@gmail.com

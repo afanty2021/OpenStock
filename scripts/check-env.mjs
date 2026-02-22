@@ -21,7 +21,7 @@ const requiredVars = {
     'FINNHUB_BASE_URL': 'Finnhub API base URL',
     
     // Inngest
-    'GEMINI_API_KEY': 'Google Gemini API key',
+    'MINIMAX_API_KEY': 'MiniMax AI API key',
     'INNGEST_SIGNING_KEY': 'Inngest signing key (for Vercel)',
     
     // Email

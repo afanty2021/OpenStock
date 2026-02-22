@@ -70,7 +70,7 @@ NODEMAILER_EMAIL=youraddress@gmail.com
 NODEMAILER_PASSWORD=your_gmail_app_password
 
 # 可选：AI 功能
-GEMINI_API_KEY=your_gemini_api_key
+MINIMAX_API_KEY=your_minimax_api_key
 
 # 可选：Inngest（Vercel 部署需要）
 INNGEST_SIGNING_KEY=your_inngest_signing_key

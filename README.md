@@ -253,8 +253,8 @@ BETTER_AUTH_URL=http://localhost:3000
 NEXT_PUBLIC_FINNHUB_API_KEY=your_finnhub_key
 FINNHUB_BASE_URL=https://finnhub.io/api/v1
 
-# Inngest AI (Gemini)
-GEMINI_API_KEY=your_gemini_api_key
+# Inngest AI (MiniMax)
+MINIMAX_API_KEY=your_minimax_api_key
 # Inngest Signing Key (required for Vercel deployment)
 # Get this from your Inngest dashboard: https://app.inngest.com/env/settings/keys
 INNGEST_SIGNING_KEY=your_inngest_signing_key
@@ -281,8 +281,8 @@ BETTER_AUTH_URL=http://localhost:3000
 NEXT_PUBLIC_FINNHUB_API_KEY=your_finnhub_key
 FINNHUB_BASE_URL=https://finnhub.io/api/v1
 
-# Inngest AI (Gemini)
-GEMINI_API_KEY=your_gemini_api_key
+# Inngest AI (MiniMax)
+MINIMAX_API_KEY=your_minimax_api_key
 # Inngest Signing Key (required for Vercel deployment)
 # Get this from your Inngest dashboard: https://app.inngest.com/env/settings/keys
 INNGEST_SIGNING_KEY=your_inngest_signing_key

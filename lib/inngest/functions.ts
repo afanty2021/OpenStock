@@ -22,27 +22,27 @@ export const sendSignUpEmail = inngest.createFunction(
 
         let aiResponse;
         try {
+            // 使用 MiniMax AI (OpenAI 兼容格式)
             aiResponse = await step.ai.infer('generate-welcome-intro', {
-                model: step.ai.models.gemini({ model: 'gemini-2.5-flash-lite' }),
+                model: step.ai.models.openai({ model: 'MiniMax-M2.5' }),
                 body: {
-                    contents: [
+                    messages: [
                         {
                             role: 'user',
-                            parts: [
-                                { text: prompt }
-                            ]
-                        }]
+                            content: prompt
+                        }
+                    ]
                 }
             });
         } catch (error) {
-            console.error("⚠️ Gemini API failed, switching to Siray.ai fallback", error);
+            console.error("⚠️ MiniMax API failed, switching to fallback", error);
 
-            // Fallback Step
+            // Fallback Step (Siray.ai 备选方案)
             aiResponse = await step.run('generate-welcome-intro-fallback', async () => {
                 const SIRAY_API_KEY = process.env.SIRAY_API_KEY;
                 if (!SIRAY_API_KEY) throw new Error("Siray API Key missing");
 
-                // Simulated OpenAI-compatible call
+                // OpenAI 兼容调用
                 const res = await fetch('https://api.siray.ai/v1/chat/completions', {
                     method: 'POST',
                     headers: {
@@ -58,10 +58,10 @@ export const sendSignUpEmail = inngest.createFunction(
                 if (!res.ok) throw new Error(`Siray API Error: ${res.statusText}`);
 
                 const data = await res.json();
-                // Map to Gemini format for compatibility downstream
+                // 返回 OpenAI 格式以保持兼容性
                 return {
-                    candidates: [{
-                        content: { parts: [{ text: data.choices[0].message.content }] }
+                    choices: [{
+                        message: { content: data.choices[0].message.content }
                     }]
                 };
             });
@@ -70,8 +70,8 @@ export const sendSignUpEmail = inngest.createFunction(
 
         await step.run('send-welcome-email', async () => {
             try {
-                const part = aiResponse.candidates?.[0]?.content?.parts?.[0];
-                const introText = (part && 'text' in part ? part.text : null) || 'Thanks for joining Openstock. You now have the tools to track markets and make smarter moves.'
+                // OpenAI 格式响应解析
+                const introText = aiResponse.choices?.[0]?.message?.content || 'Thanks for joining Openstock. You now have the tools to track markets and make smarter moves.'
 
                 const { data: { email, name } } = event;
 
@@ -117,15 +117,16 @@ export const sendWeeklyNewsSummary = inngest.createFunction(
 
         let aiResponse;
         try {
+            // 使用 MiniMax AI (OpenAI 兼容格式)
             aiResponse = await step.ai.infer('generate-news-summary', {
-                model: step.ai.models.gemini({ model: 'gemini-2.5-flash-lite' }),
-                body: { contents: [{ role: 'user', parts: [{ text: prompt }] }] }
+                model: step.ai.models.openai({ model: 'MiniMax-M2.5' }),
+                body: { messages: [{ role: 'user', content: prompt }] }
             });
         } catch (error) {
-            console.error("⚠️ Gemini API failed (Weekly News), switching to Siray.ai fallback", error);
+            console.error("⚠️ MiniMax API failed (Weekly News), switching to fallback", error);
             aiResponse = await step.run('generate-news-summary-fallback', async () => {
                 const SIRAY_API_KEY = process.env.SIRAY_API_KEY;
-                if (!SIRAY_API_KEY) return { candidates: [{ content: { parts: [{ text: "Market is moving. Log in to see more." }] } }] };
+                if (!SIRAY_API_KEY) return { choices: [{ message: { content: "Market is moving. Log in to see more." } }] };
 
                 const res = await fetch('https://api.siray.ai/v1/chat/completions', {
                     method: 'POST',
@@ -141,17 +142,18 @@ export const sendWeeklyNewsSummary = inngest.createFunction(
 
                 if (!res.ok) throw new Error("Siray API Error");
                 const data = await res.json();
+                // 返回 OpenAI 格式以保持兼容性
                 return {
-                    candidates: [{
-                        content: { parts: [{ text: data.choices[0].message.content }] }
+                    choices: [{
+                        message: { content: data.choices[0].message.content }
                     }]
                 };
             });
         }
 
 
-        const part = aiResponse.candidates?.[0]?.content?.parts?.[0];
-        const summaryText = (part && 'text' in part ? part.text : null) || 'Market is moving. Log in to see more.';
+        // OpenAI 格式响应解析
+        const summaryText = aiResponse.choices?.[0]?.message?.content || 'Market is moving. Log in to see more.';
 
         // Step 3: Send Broadcast via Kit
         await step.run('send-kit-broadcast', async () => {
