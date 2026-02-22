@@ -401,20 +401,6 @@ describe('TushareSource', () => {
       expect(result).toEqual([]);
       expect(mockFetch).not.toHaveBeenCalled();
     });
-
-    test('应拒绝超过2100年的日期', async () => {
-      const result = await tushare.getTopList({ tradeDate: '21010101' });
-
-      expect(result).toEqual([]);
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    test('应拒绝2000年之前的日期', async () => {
-      const result = await tushare.getTopList({ tradeDate: '19991231' });
-
-      expect(result).toEqual([]);
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
   });
 
   describe('supportsSymbol', () => {

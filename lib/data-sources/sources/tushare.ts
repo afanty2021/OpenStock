@@ -382,27 +382,37 @@ export class TushareSource extends BaseDataSource {
   /**
    * 获取最新交易日期（Tushare 格式：YYYYMMDD）
    *
-   * 使用 TradingCalendar 获取最近的交易日
-   * 如果今天不是交易日，回退到前一个交易日
+   * 完全委托给 TradingCalendar 获取最近的交易日
+   * 如果今天不是交易日，使用 TradingCalendar 的前向查找逻辑
    */
   private getLatestTradeDate(): string {
-    let date = new Date();
-
-    // 如果当前不是交易日，向前查找最近的交易日
-    if (!TradingCalendar.isTradingDay(date)) {
-      // 最多向前查找 7 天
-      for (let i = 0; i < 7; i++) {
-        date.setDate(date.getDate() - 1);
-        if (TradingCalendar.isTradingDay(date)) {
-          break;
-        }
-      }
-    }
+    const today = new Date();
+    const date = TradingCalendar.isTradingDay(today)
+      ? today
+      : this.getPreviousTradingDay(today);
 
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}${month}${day}`;
+  }
+
+  /**
+   * 获取前一个交易日（用于查找最近的交易日）
+   * @param date 起始日期
+   * @returns 前一个交易日
+   * @private
+   */
+  private getPreviousTradingDay(date: Date): Date {
+    const prevDay = new Date(date);
+    // 最多向前查找 7 天（一周内必定有交易日）
+    for (let i = 0; i < 7; i++) {
+      prevDay.setDate(prevDay.getDate() - 1);
+      if (TradingCalendar.isTradingDay(prevDay)) {
+        return prevDay;
+      }
+    }
+    return prevDay; // 默认返回最后检查的日期
   }
 
   /**
@@ -508,7 +518,7 @@ export class TushareSource extends BaseDataSource {
 
   /**
    * 验证交易日期格式和有效性
-   * 使用 TradingCalendar 验证日期格式和交易日有效性
+   * 完全委托给 TradingCalendar 验证日期格式和交易日有效性
    *
    * @param date 日期字符串（YYYYMMDD 格式）
    * @returns 是否为有效交易日期格式
@@ -520,18 +530,13 @@ export class TushareSource extends BaseDataSource {
       return false;
     }
 
-    // 检查日期是否有效
+    // 解析日期
     const year = parseInt(date.substring(0, 4), 10);
     const month = parseInt(date.substring(4, 6), 10);
     const day = parseInt(date.substring(6, 8), 10);
-
-    // 基本范围检查
-    if (year < 2000 || year > 2100) return false;
-    if (month < 1 || month > 12) return false;
-    if (day < 1 || day > 31) return false;
-
-    // 检查日期是否真实存在
     const testDate = new Date(year, month - 1, day);
+
+    // 检查日期解析有效性
     if (
       testDate.getFullYear() !== year ||
       testDate.getMonth() !== month - 1 ||
@@ -540,7 +545,7 @@ export class TushareSource extends BaseDataSource {
       return false;
     }
 
-    // 使用 TradingCalendar 验证是否为交易日
+    // 完全委托给 TradingCalendar 检查是否为交易日
     return TradingCalendar.isTradingDay(testDate);
   }
 
