@@ -74,6 +74,13 @@ const DECIMAL_PLACES = 10;
 const ZERO = 0;
 
 /**
+ * 单位值常量
+ *
+ * 用于价格计算基准值
+ */
+const ONE = 1;
+
+/**
  * 最小有效值常量
  */
 const MIN_VALID_VALUE = 0;
@@ -208,17 +215,17 @@ export class LimitDetector {
     const lowerDistancePct = parseFloat((limitPct + currentPct).toFixed(DECIMAL_PLACES));
 
     // 计算涨停价和跌停价
-    const upperLimitPrice = prevClose * (1 + limitPct / 100);
-    const lowerLimitPrice = prevClose * (1 - limitPct / 100);
+    const upperLimitPrice = prevClose * (ONE + limitPct / 100);
+    const lowerLimitPrice = prevClose * (ONE - limitPct / 100);
 
     // 计算距离涨跌停的金额（使用 toFixed 修正浮点精度）
     const upperDistancePrice = parseFloat((upperLimitPrice - currentPrice).toFixed(DECIMAL_PLACES));
     const lowerDistancePrice = parseFloat((currentPrice - lowerLimitPrice).toFixed(DECIMAL_PLACES));
 
     // 判断是否可触及
-    // 条件：距离为正且小于或等于限制的 30%
-    const toUpperReachable = upperDistancePct > ZERO && upperDistancePct <= limitPct * REACHABLE_THRESHOLD;
-    const toLowerReachable = lowerDistancePct > ZERO && lowerDistancePct <= limitPct * REACHABLE_THRESHOLD;
+    // 条件：距离为正且小于限制的 30%（严格小于，不包含边界）
+    const toUpperReachable = upperDistancePct > ZERO && upperDistancePct < limitPct * REACHABLE_THRESHOLD;
+    const toLowerReachable = lowerDistancePct > ZERO && lowerDistancePct < limitPct * REACHABLE_THRESHOLD;
 
     return {
       toUpper: {
@@ -258,7 +265,7 @@ export class LimitDetector {
    * ```
    */
   static isNearLimit(quote: QuoteData, threshold: number = DEFAULT_NEAR_THRESHOLD): boolean {
-    if (threshold < ZERO || threshold > 1) {
+    if (threshold < ZERO || threshold > ONE) {
       throw new Error('Threshold must be between 0 and 1');
     }
 

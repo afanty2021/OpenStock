@@ -292,13 +292,13 @@ describe('LimitDetector', () => {
         const quote = createQuote({
           symbol: '600519.SH',
           pc: 100,
-          c: 107,
-          dp: 7,
+          c: 107.01,
+          dp: 7.01,
         });
 
         const prediction = LimitDetector.predictLimitDistance(quote);
 
-        // 距离涨停 3%，小于 10% * 0.3 = 3%，可触及
+        // 距离涨停 2.99%（略小于 10% * 0.3 = 3%），可触及
         expect(prediction.toUpper.reachable).toBe(true);
         expect(prediction.toLower.reachable).toBe(false);
       });
@@ -343,6 +343,36 @@ describe('LimitDetector', () => {
 
         // 已跌停，不可触及
         expect(prediction.toLower.reachable).toBe(false);
+      });
+
+      test('边界情况：距离恰好等于 30% 时应判断为不可触及（严格小于）', () => {
+        const quote = createQuote({
+          symbol: '600519.SH',
+          pc: 100,
+          c: 107,
+          dp: 7,
+        });
+
+        const prediction = LimitDetector.predictLimitDistance(quote);
+
+        // 距离涨停恰好 3%（10% * 0.3 = 3%），使用严格小于运算符，应为不可触及
+        expect(prediction.toUpper.pct).toBeCloseTo(3, 1);
+        expect(prediction.toUpper.reachable).toBe(false);
+      });
+
+      test('边界情况：距离略小于 30% 时应判断为可触及', () => {
+        const quote = createQuote({
+          symbol: '600519.SH',
+          pc: 100,
+          c: 107.01,
+          dp: 7.01,
+        });
+
+        const prediction = LimitDetector.predictLimitDistance(quote);
+
+        // 距离涨停 2.99%（略小于 10% * 0.3 = 3%），应为可触及
+        expect(prediction.toUpper.pct).toBeCloseTo(2.99, 1);
+        expect(prediction.toUpper.reachable).toBe(true);
       });
     });
   });
