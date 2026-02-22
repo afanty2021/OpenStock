@@ -6,6 +6,7 @@
  * - 市场类型检测
  * - 涨跌停检测
  * - 交易时间适配
+ * - 交易时段感知调度
  * @module data-sources/astock
  */
 
@@ -30,3 +31,6 @@ export {
   type TradingStatus,
   type TradingSession,
 } from './trading-calendar';
+
+// 导出交易时段感知调度器
+export { TradingAwareScheduler } from './trading-aware-scheduler';

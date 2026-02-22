@@ -2,21 +2,92 @@
 
 ## 模块概述
 
-提供 A 股市场专用功能，包括代码格式标准化、市场类型检测、涨跌停限制计算等。
+提供 A 股市场专用功能，包括代码格式标准化、市场类型检测、涨跌停限制计算、涨跌停检测和交易日历管理等。
 
 ## 目录结构
 
 ```
 lib/data-sources/astock/
-├── index.ts           # 模块入口，导出公共 API
-├── code-util.ts       # 代码格式标准化工具
+├── index.ts                  # 模块入口，导出公共 API
+├── code-util.ts              # 代码格式标准化工具
+├── limit-detector.ts         # 涨跌停检测器
+├── trading-calendar.ts       # 交易日历管理
 └── __tests__/
-    └── code-util.test.ts  # 单元测试（72 个测试用例，90%+ 覆盖率）
+    ├── code-util.test.ts     # 代码工具测试（72 个测试用例）
+    ├── limit-detector.test.ts# 涨跌停检测测试（34 个测试用例）
+    └── trading-calendar.test.ts # 交易日历测试（83 个测试用例）
 ```
+
+## 测试统计
+
+| 模块 | 测试用例 | 语句覆盖率 | 分支覆盖率 | 函数覆盖率 |
+|------|---------|-----------|-----------|-----------|
+| code-util.ts | 72 | 93.1% | 90.32% | 100% |
+| limit-detector.ts | 34 | ~90% | ~85% | 100% |
+| trading-calendar.ts | 83 | 88.31% | 86.84% | 100% |
+| **总计** | **189** | **~90%** | **~87%** | **100%** |
 
 ## 核心功能
 
-### AStockCodeUtil - 代码格式标准化工具
+### TradingCalendar - 交易日历管理
+
+提供 A 股交易时间判断和交易日历管理功能。
+
+#### 主要方法
+
+| 方法 | 描述 | 返回值 |
+|------|------|--------|
+| `getTradingStatus(date?)` | 获取当前交易时段状态 | `TradingStatus` |
+| `isTradingDay(date)` | 判断是否为交易日 | `boolean` |
+| `isHoliday(date)` | 判断是否为休市日 | `boolean` |
+| `getNextTradingDay(date?)` | 获取下一个交易日 | `Date` |
+| `getNextOpen(date?)` | 获取下一个开盘时间 | `Date` |
+
+#### 交易状态
+
+```typescript
+type TradingStatusCode =
+  | 'TRADING'      // 交易中
+  | 'PRE_MARKET'   // 集合竞价
+  | 'LUNCH_BREAK'  // 午间休市
+  | 'CLOSED'       // 收市后
+  | 'HOLIDAY';     // 法定节假日
+
+interface TradingStatus {
+  status: TradingStatusCode;
+  session?: 'MORNING' | 'AFTERNOON';
+  note?: string;
+  nextOpen?: Date;
+}
+```
+
+#### A 股交易时段
+
+| 时段 | 开始时间 | 结束时间 | 说明 |
+|------|---------|---------|------|
+| 集合竞价 | 09:15 | 09:25 | 价格确定阶段 |
+| 上午交易 | 09:30 | 11:30 | 连续竞价 |
+| 午间休市 | 11:30 | 13:00 | 暂停交易 |
+| 下午交易 | 13:00 | 15:00 | 连续竞价 |
+
+#### 使用示例
+
+```typescript
+import { TradingCalendar } from '@/lib/data-sources/astock';
+
+// 获取当前交易状态
+const status = TradingCalendar.getTradingStatus();
+console.log(status.status); // 'TRADING'
+console.log(status.session); // 'MORNING'
+
+// 判断是否为交易日
+const isTrading = TradingCalendar.isTradingDay(new Date());
+
+// 获取下一个开盘时间
+const nextOpen = TradingCalendar.getNextOpen();
+```
+
+### LimitDetector - 涨跌停检测器
 
 #### 主要方法
 
@@ -55,7 +126,58 @@ enum MarketType {
 | 北交所 | ±30% | 800000-899999, 400000-499999 |
 | ST 股票 | ±5% | 名称包含 ST/*ST/S*ST |
 
+### LimitDetector - 涨跌停检测器
+
+#### 主要方法
+
+| 方法 | 描述 | 返回值 |
+|------|------|--------|
+| `detectLimitStatus(quote)` | 检测当前涨跌停状态 | `LimitStatus` |
+| `predictLimitDistance(quote)` | 预测距离涨跌停的空间 | `LimitPrediction` |
+| `isNearLimit(quote, threshold?)` | 判断是否接近涨跌停 | `boolean` |
+
+#### 使用示例
+
+```typescript
+import { LimitDetector } from '@/lib/data-sources/astock';
+
+const quote: QuoteData = {
+  symbol: '600519.SH',
+  c: 108,
+  pc: 100,
+  dp: 8,
+  // ...
+};
+
+// 检测涨跌停状态
+const status = LimitDetector.detectLimitStatus(quote); // 'NORMAL'
+
+// 预测距离涨跌停
+const prediction = LimitDetector.predictLimitDistance(quote);
+console.log(prediction.toUpper.pct); // 2 (距离涨停 2%)
+
+// 判断是否接近涨跌停
+const isNear = LimitDetector.isNearLimit(quote); // true
+```
+
 ## 使用示例
+
+### 交易日历管理
+
+```typescript
+import { TradingCalendar } from '@/lib/data-sources/astock';
+
+// 获取当前交易状态
+const status = TradingCalendar.getTradingStatus();
+console.log(status.status); // 'TRADING'
+console.log(status.session); // 'MORNING'
+
+// 判断是否为交易日
+const isTrading = TradingCalendar.isTradingDay(new Date());
+
+// 获取下一个开盘时间
+const nextOpen = TradingCalendar.getNextOpen();
+```
 
 ### 代码格式标准化
 
