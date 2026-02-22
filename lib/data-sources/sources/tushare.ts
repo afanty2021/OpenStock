@@ -66,7 +66,6 @@ type SearchResultType = {
 };
 
 const API_URL = 'http://api.tushare.pro';
-const API_TOKEN = process.env.TUSHARE_API_TOKEN ?? '';
 
 /**
  * Tushare API 响应格式
@@ -158,7 +157,14 @@ export class TushareSource extends BaseDataSource {
   };
 
   private apiUrl = API_URL;
-  private token = API_TOKEN;
+
+  /**
+   * 获取 API Token
+   * 动态从环境变量读取，支持测试环境变更
+   */
+  private get token(): string {
+    return process.env.TUSHARE_API_TOKEN ?? '';
+  }
 
   /**
    * 判断是否支持该股票代码
@@ -428,15 +434,64 @@ export class TushareSource extends BaseDataSource {
    * 获取龙虎榜数据
    * 接口：top_list
    *
-   * @param date 交易日期（可选，格式：YYYYMMDD）
+   * 支持历史查询、股票代码过滤和结果限制
+   *
+   * @param options 查询选项
+   * @param options.tsCode 股票代码（如 600519.SH 或 600519）
+   * @param options.tradeDate 交易日期（格式：YYYYMMDD），默认为最新交易日
+   * @param options.limit 返回条数限制
    * @returns 龙虎榜数据数组
+   *
+   * @example
+   * ```ts
+   * // 获取当日龙虎榜
+   * const today = await tushare.getTopList();
+   *
+   * // 获取指定日期龙虎榜
+   * const historical = await tushare.getTopList({ tradeDate: '20260220' });
+   *
+   * // 获取指定股票的龙虎榜历史
+   * const stockTopList = await tushare.getTopList({ tsCode: '600519.SH' });
+   *
+   * // 获取指定日期的TOP10
+   * const top10 = await tushare.getTopList({ tradeDate: '20260220', limit: 10 });
+   * ```
    */
-  async getTopList(date?: string): Promise<TopListData[]> {
-    const tradeDate = date || this.getLatestTradeDate();
+  async getTopList(options?: { tsCode?: string; tradeDate?: string; limit?: number }): Promise<TopListData[]> {
+    // 向后兼容：支持直接传递 date 字符串
+    let tradeDate: string | undefined;
+    let tsCode: string | undefined;
+    let limit: number | undefined;
+
+    if (typeof options === 'string') {
+      // 旧版调用方式：getTopList(date)
+      tradeDate = options;
+    } else if (options) {
+      tradeDate = options.tradeDate;
+      tsCode = options.tsCode;
+      limit = options.limit;
+    }
+
+    // 如果没有指定日期，使用最新交易日
+    const queryDate = tradeDate || this.getLatestTradeDate();
+
+    // 验证日期格式（YYYYMMDD）
+    if (!this.isValidTradeDate(queryDate)) {
+      return [];
+    }
+
+    // 转换股票代码格式
+    const queryTsCode = tsCode ? StockCodeValidator.toTushareCode(tsCode) : undefined;
 
     const data = await this.fetchWithRetry(async () => {
       if (!this.token) {
         throw new Error('Tushare API token is not configured');
+      }
+
+      // 构建请求参数
+      const params: Record<string, string> = { trade_date: queryDate };
+      if (queryTsCode) {
+        params.ts_code = queryTsCode;
       }
 
       const response = await fetch(this.apiUrl, {
@@ -445,7 +500,7 @@ export class TushareSource extends BaseDataSource {
         body: JSON.stringify({
           api_name: 'top_list',
           token: this.token,
-          params: { trade_date: tradeDate },
+          params,
           fields: 'ts_code,name,reason,buy_amount,sell_amount,net_amount'
         })
       });
@@ -463,7 +518,45 @@ export class TushareSource extends BaseDataSource {
       throw new Error('Failed to fetch top list after retries');
     }
 
+    // 应用 limit 限制
+    if (limit && limit > 0 && data.length > limit) {
+      return data.slice(0, limit);
+    }
+
     return data;
+  }
+
+  /**
+   * 验证交易日期格式
+   * 检查日期是否符合 YYYYMMDD 格式
+   *
+   * @param date 日期字符串
+   * @returns 是否为有效日期格式
+   * @private
+   */
+  private isValidTradeDate(date: string): boolean {
+    // 检查格式：8位数字
+    if (!/^\d{8}$/.test(date)) {
+      return false;
+    }
+
+    // 检查日期是否有效
+    const year = parseInt(date.substring(0, 4), 10);
+    const month = parseInt(date.substring(4, 6), 10);
+    const day = parseInt(date.substring(6, 8), 10);
+
+    // 基本范围检查
+    if (year < 2000 || year > 2100) return false;
+    if (month < 1 || month > 12) return false;
+    if (day < 1 || day > 31) return false;
+
+    // 检查日期是否真实存在
+    const testDate = new Date(year, month - 1, day);
+    return (
+      testDate.getFullYear() === year &&
+      testDate.getMonth() === month - 1 &&
+      testDate.getDate() === day
+    );
   }
 
   /**
