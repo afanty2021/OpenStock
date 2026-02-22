@@ -109,30 +109,6 @@ describe('TushareSource', () => {
       expect(callArgs.params.trade_date).toBe('20260220');
     });
 
-    test('应向后兼容旧版 date 字符串参数', async () => {
-      const mockResponse = {
-        code: 0,
-        msg: null,
-        data: {
-          fields: ['ts_code', 'name', 'reason', 'buy_amount', 'sell_amount', 'net_amount'],
-          items: [],
-        },
-      };
-
-      mockFetch.mockResolvedValueOnce({
-        json: async () => mockResponse,
-      });
-
-      // 旧版调用方式
-      const result = await tushare.getTopList('20260219');
-
-      expect(result).toEqual([]);
-
-      // 验证 API 调用参数
-      const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(callArgs.params.trade_date).toBe('20260219');
-    });
-
     test('无效日期应返回空数组', async () => {
       // 测试无效日期格式
       const result1 = await tushare.getTopList({ tradeDate: 'invalid' });
@@ -158,6 +134,20 @@ describe('TushareSource', () => {
 
       const result3 = await tushare.getTopList({ tradeDate: '202602201' });
       expect(result3).toEqual([]);
+    });
+
+    test('应拒绝非交易日（周末）', async () => {
+      // 2026年2月21日是周六
+      const result = await tushare.getTopList({ tradeDate: '20260221' });
+      expect(result).toEqual([]);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    test('应拒绝非交易日（周日）', async () => {
+      // 2026年2月22日是周日
+      const result = await tushare.getTopList({ tradeDate: '20260222' });
+      expect(result).toEqual([]);
+      expect(mockFetch).not.toHaveBeenCalled();
     });
   });
 
@@ -375,7 +365,7 @@ describe('TushareSource', () => {
         json: async () => mockResponse,
       });
 
-      // 测试有效历史日期
+      // 测试有效历史日期（2020年1月1日是周三，交易日）
       const result = await tushare.getTopList({ tradeDate: '20200101' });
 
       expect(result).toEqual([]);
@@ -398,12 +388,14 @@ describe('TushareSource', () => {
         json: async () => mockResponse,
       });
 
+      // 2024年2月29日是周四，交易日
       const result = await tushare.getTopList({ tradeDate: '20240229' });
 
       expect(result).toEqual([]);
     });
 
     test('应拒绝无效的闰年日期', async () => {
+      // 2023年不是闰年，2月29日不存在
       const result = await tushare.getTopList({ tradeDate: '20230229' });
 
       expect(result).toEqual([]);
@@ -420,44 +412,6 @@ describe('TushareSource', () => {
     test('应拒绝2000年之前的日期', async () => {
       const result = await tushare.getTopList({ tradeDate: '19991231' });
 
-      expect(result).toEqual([]);
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('isValidTradeDate - 日期验证', () => {
-    test('应接受有效的 YYYYMMDD 格式', async () => {
-      const mockResponse = {
-        code: 0,
-        msg: null,
-        data: {
-          fields: ['ts_code', 'name', 'reason', 'buy_amount', 'sell_amount', 'net_amount'],
-          items: [],
-        },
-      };
-
-      mockFetch.mockResolvedValueOnce({
-        json: async () => mockResponse,
-      });
-
-      await tushare.getTopList({ tradeDate: '20260220' });
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-    });
-
-    test('应拒绝少于8位的日期', async () => {
-      const result = await tushare.getTopList({ tradeDate: '2026022' });
-      expect(result).toEqual([]);
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    test('应拒绝多于8位的日期', async () => {
-      const result = await tushare.getTopList({ tradeDate: '202602201' });
-      expect(result).toEqual([]);
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    test('应拒绝非数字的日期', async () => {
-      const result = await tushare.getTopList({ tradeDate: 'abcd0220' });
       expect(result).toEqual([]);
       expect(mockFetch).not.toHaveBeenCalled();
     });
@@ -512,6 +466,273 @@ describe('TushareSource', () => {
         financials: true,
         markets: ['CN', 'HK'],
       });
+    });
+  });
+
+  describe('getQuote - 报价获取', () => {
+    test('应获取股票报价数据', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'open', 'high', 'low', 'close', 'pre_close', 'vol', 'amount'],
+          items: [['600519.SH', '20260223', 107.5, 108.5, 107, 108, 106.5, 1000, 107500]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getQuote('600519.SH');
+
+      expect(result.data).toBeDefined();
+      expect(result.data.symbol).toBe('600519.SH');
+      expect(result.data.c).toBe(108);
+      expect(result.data.d).toBe(1.5);
+      expect(result.data._source).toBe('tushare');
+    });
+
+    test('应转换 Finnhub 格式代码为 Tushare 格式', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'open', 'high', 'low', 'close', 'pre_close', 'vol', 'amount'],
+          items: [['600519.SH', '20260223', 107.5, 108.5, 107, 108, 106.5, 1000, 107500]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await tushare.getQuote('600519.SS');
+
+      const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(callArgs.params.ts_code).toBe('600519.SH');
+    });
+
+    test('没有 token 时应抛出错误', async () => {
+      delete process.env.TUSHARE_API_TOKEN;
+      const tushareNoToken = new TushareSource();
+
+      await expect(tushareNoToken.getQuote('600519.SH')).rejects.toThrow('Failed to fetch quote after retries');
+
+      // 恢复环境变量
+      process.env.TUSHARE_API_TOKEN = 'test_token';
+    });
+
+    test('API 返回错误时应抛出异常', async () => {
+      const mockResponse = {
+        code: -1,
+        msg: 'Invalid API token',
+        data: null,
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await expect(tushare.getQuote('600519.SH')).rejects.toThrow();
+    });
+
+    test('无数据时应抛出异常', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'open', 'high', 'low', 'close', 'pre_close', 'vol', 'amount'],
+          items: [],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await expect(tushare.getQuote('600519.SH')).rejects.toThrow('Failed to fetch quote after retries');
+    });
+  });
+
+  describe('getProfile - 公司资料', () => {
+    test('应获取公司资料数据', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'turnover_rate', 'volume_ratio', 'pe', 'pb'],
+          items: [['600519.SH', '20260223', 0.5, 1.2, 35.5, 12.8]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getProfile('600519.SH');
+
+      expect(result.data).toBeDefined();
+      expect(result.data.symbol).toBe('600519.SH');
+      expect(result.data._source).toBe('tushare');
+    });
+  });
+
+  describe('getFinancials - 财务数据', () => {
+    test('应获取财务数据', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'end_date', 'total_revenue', 'n_income', 'total_assets', 'total_liability', 'basic_eps', 'roe'],
+          items: [['600519.SH', '20241231', 1000000, 500000, 2000000, 500000, 25, 25]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getFinancials('600519.SH');
+
+      expect(result.data).toBeDefined();
+      expect(result.data.symbol).toBe('600519.SH');
+      expect(result.data.period).toBe('20241231');
+      expect(result.data.revenue).toBe(1000000);
+      expect(result.data.netIncome).toBe(500000);
+      expect(result.data._source).toBe('tushare');
+    });
+  });
+
+  describe('searchStocks - 股票搜索', () => {
+    test('应返回空数组（Tushare 不支持搜索）', async () => {
+      const result = await tushare.searchStocks();
+
+      expect(result.data).toEqual([]);
+      expect(result.data).toHaveLength(0);
+    });
+  });
+
+  describe('getMoneyFlow - 资金流向', () => {
+    test('应获取资金流向数据', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'buy_elg_vol', 'sell_elg_vol', 'buy_lg_vol', 'sell_lg_vol', 'net_mf_vol'],
+          items: [['600519.SH', '20260223', 1000, 800, 500, 400, 100]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getMoneyFlow('600519.SH');
+
+      expect(result).toBeDefined();
+      expect(result.ts_code).toBe('600519.SH');
+      expect(result.buy_elg_vol).toBe(1000);
+      expect(result.sell_elg_vol).toBe(800);
+    });
+
+    test('应支持指定交易日期', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'buy_elg_vol', 'sell_elg_vol', 'buy_lg_vol', 'sell_lg_vol', 'net_mf_vol'],
+          items: [['600519.SH', '20260220', 1000, 800, 500, 400, 100]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await tushare.getMoneyFlow('600519.SH', '20260220');
+
+      const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(callArgs.params.trade_date).toBe('20260220');
+    });
+
+    test('无数据时应抛出异常', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'buy_elg_vol', 'sell_elg_vol', 'buy_lg_vol', 'sell_lg_vol', 'net_mf_vol'],
+          items: [],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await expect(tushare.getMoneyFlow('600519.SH')).rejects.toThrow();
+    });
+  });
+
+  describe('getDailyBasic - 每日指标', () => {
+    test('应获取每日指标数据', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'pe_ttm', 'pb', 'ps_ttm', 'pcf_ratio', 'turnover', 'volume_ratio', 'total_mv', 'circ_mv'],
+          items: [['600519.SH', '20260223', 35.5, 12.8, 15.2, 20.5, 0.5, 1.2, 1350000, 1200000]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getDailyBasic('600519.SH');
+
+      expect(result).toBeDefined();
+      expect(result.ts_code).toBe('600519.SH');
+      expect(result.pe_ttm).toBe(35.5);
+      expect(result.pb).toBe(12.8);
+      expect(result.turnover).toBe(0.5);
+    });
+
+    test('应支持指定交易日期', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'pe_ttm', 'pb', 'ps_ttm', 'pcf_ratio', 'turnover', 'volume_ratio', 'total_mv', 'circ_mv'],
+          items: [['600519.SH', '20260220', 35.5, 12.8, 15.2, 20.5, 0.5, 1.2, 1350000, 1200000]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await tushare.getDailyBasic('600519.SH', '20260220');
+
+      const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(callArgs.params.trade_date).toBe('20260220');
+    });
+
+    test('无数据时应抛出异常', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'pe_ttm', 'pb', 'ps_ttm', 'pcf_ratio', 'turnover', 'volume_ratio', 'total_mv', 'circ_mv'],
+          items: [],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await expect(tushare.getDailyBasic('600519.SH')).rejects.toThrow();
     });
   });
 });

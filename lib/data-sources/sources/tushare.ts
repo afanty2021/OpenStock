@@ -15,6 +15,7 @@ import type {
   SearchResult,
 } from '../types';
 import { StockCodeValidator } from '../config';
+import { TradingCalendar } from '../astock';
 
 // 类型别名，简化代码中的类型声明
 type QuoteDataType = {
@@ -159,12 +160,10 @@ export class TushareSource extends BaseDataSource {
   private apiUrl = API_URL;
 
   /**
-   * 获取 API Token
-   * 动态从环境变量读取，支持测试环境变更
+   * API Token
+   * 从环境变量读取
    */
-  private get token(): string {
-    return process.env.TUSHARE_API_TOKEN ?? '';
-  }
+  private token = process.env.TUSHARE_API_TOKEN ?? '';
 
   /**
    * 判断是否支持该股票代码
@@ -383,27 +382,21 @@ export class TushareSource extends BaseDataSource {
   /**
    * 获取最新交易日期（Tushare 格式：YYYYMMDD）
    *
-   * 回退到最近的过去交易日，避免使用未来日期
+   * 使用 TradingCalendar 获取最近的交易日
+   * 如果今天不是交易日，回退到前一个交易日
    */
   private getLatestTradeDate(): string {
     let date = new Date();
 
-    // 获取星期几（0=周日, 6=周六）
-    const dayOfWeek = date.getDay();
-
-    // 如果是周日（0），回退 2 天到周五
-    if (dayOfWeek === 0) {
-      date.setDate(date.getDate() - 2);
-    }
-    // 如果是周六（6），回退 1 天到周五
-    else if (dayOfWeek === 6) {
-      date.setDate(date.getDate() - 1);
-    }
-
-    // 如果当前时间较早（凌晨），可能市场还没开盘，使用前一天的日期
-    const hour = date.getHours();
-    if (hour < 9) {
-      date.setDate(date.getDate() - 1);
+    // 如果当前不是交易日，向前查找最近的交易日
+    if (!TradingCalendar.isTradingDay(date)) {
+      // 最多向前查找 7 天
+      for (let i = 0; i < 7; i++) {
+        date.setDate(date.getDate() - 1);
+        if (TradingCalendar.isTradingDay(date)) {
+          break;
+        }
+      }
     }
 
     const year = date.getFullYear();
@@ -458,30 +451,16 @@ export class TushareSource extends BaseDataSource {
    * ```
    */
   async getTopList(options?: { tsCode?: string; tradeDate?: string; limit?: number }): Promise<TopListData[]> {
-    // 向后兼容：支持直接传递 date 字符串
-    let tradeDate: string | undefined;
-    let tsCode: string | undefined;
-    let limit: number | undefined;
-
-    if (typeof options === 'string') {
-      // 旧版调用方式：getTopList(date)
-      tradeDate = options;
-    } else if (options) {
-      tradeDate = options.tradeDate;
-      tsCode = options.tsCode;
-      limit = options.limit;
-    }
-
     // 如果没有指定日期，使用最新交易日
-    const queryDate = tradeDate || this.getLatestTradeDate();
+    const queryDate = options?.tradeDate || this.getLatestTradeDate();
 
-    // 验证日期格式（YYYYMMDD）
+    // 使用 TradingCalendar 验证日期格式和交易日有效性
     if (!this.isValidTradeDate(queryDate)) {
       return [];
     }
 
     // 转换股票代码格式
-    const queryTsCode = tsCode ? StockCodeValidator.toTushareCode(tsCode) : undefined;
+    const queryTsCode = options?.tsCode ? StockCodeValidator.toTushareCode(options.tsCode) : undefined;
 
     const data = await this.fetchWithRetry(async () => {
       if (!this.token) {
@@ -519,6 +498,7 @@ export class TushareSource extends BaseDataSource {
     }
 
     // 应用 limit 限制
+    const limit = options?.limit;
     if (limit && limit > 0 && data.length > limit) {
       return data.slice(0, limit);
     }
@@ -527,11 +507,11 @@ export class TushareSource extends BaseDataSource {
   }
 
   /**
-   * 验证交易日期格式
-   * 检查日期是否符合 YYYYMMDD 格式
+   * 验证交易日期格式和有效性
+   * 使用 TradingCalendar 验证日期格式和交易日有效性
    *
-   * @param date 日期字符串
-   * @returns 是否为有效日期格式
+   * @param date 日期字符串（YYYYMMDD 格式）
+   * @returns 是否为有效交易日期格式
    * @private
    */
   private isValidTradeDate(date: string): boolean {
@@ -552,11 +532,16 @@ export class TushareSource extends BaseDataSource {
 
     // 检查日期是否真实存在
     const testDate = new Date(year, month - 1, day);
-    return (
-      testDate.getFullYear() === year &&
-      testDate.getMonth() === month - 1 &&
-      testDate.getDate() === day
-    );
+    if (
+      testDate.getFullYear() !== year ||
+      testDate.getMonth() !== month - 1 ||
+      testDate.getDate() !== day
+    ) {
+      return false;
+    }
+
+    // 使用 TradingCalendar 验证是否为交易日
+    return TradingCalendar.isTradingDay(testDate);
   }
 
   /**
