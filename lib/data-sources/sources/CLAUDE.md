@@ -8,5 +8,4 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #5105 | 11:56 AM | 🔵 | Yahoo Finance V2 compilation error detected | ~333 |
-| #5094 | 11:54 AM | 🟣 | Yahoo Finance V2 data source implemented using yahoo-finance2 library | ~570 |
 </claude-mem-context>

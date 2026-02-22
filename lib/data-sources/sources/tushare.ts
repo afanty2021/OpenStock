@@ -8,12 +8,62 @@
 import { BaseDataSource } from '../base';
 import type {
   DataSourceResult,
-  QuoteDataType,
-  ProfileDataType,
-  FinancialDataType,
   DataSourceCapabilities,
+  QuoteData,
+  ProfileData,
+  FinancialData,
+  SearchResult,
 } from '../types';
 import { StockCodeValidator } from '../config';
+
+// 类型别名，简化代码中的类型声明
+type QuoteDataType = {
+  symbol: string;
+  c: number;
+  d: number;
+  dp: number;
+  h?: number;
+  l?: number;
+  o?: number;
+  pc?: number;
+  t?: number;
+  _source: string;
+  [key: string]: any;
+};
+
+type ProfileDataType = {
+  symbol: string;
+  name: string;
+  exchange: string;
+  industry?: string;
+  marketCap?: number;
+  logo?: string;
+  website?: string;
+  description?: string;
+  _source: string;
+  [key: string]: any;
+};
+
+type FinancialDataType = {
+  symbol: string;
+  period: string;
+  revenue?: number;
+  netIncome?: number;
+  totalAssets?: number;
+  totalLiabilities?: number;
+  eps?: number;
+  roe?: number;
+  _source: string;
+  [key: string]: any;
+};
+
+type SearchResultType = {
+  symbol: string;
+  name: string;
+  exchange: string;
+  type: string;
+  [key: string]: any;
+};
 
 const API_URL = 'http://api.tushare.pro';
 const API_TOKEN = process.env.TUSHARE_API_TOKEN ?? '';
@@ -32,6 +82,45 @@ interface TushareResponse<T = any> {
 }
 
 /**
+ * 龙虎榜数据
+ */
+export interface TopListData {
+  ts_code: string;        // 股票代码
+  name: string;           // 股票名称
+  reason: string;         // 上榜理由
+  buy_amount: number;     // 买入金额
+  sell_amount: number;    // 卖出金额
+  net_amount: number;     // 净买入金额
+}
+
+/**
+ * 资金流向数据
+ */
+export interface MoneyFlowData {
+  ts_code: string;
+  buy_elg_vol?: number;   // 买入量
+  sell_elg_vol?: number;  // 卖出量
+  buy_lg_vol?: number;    // 大单买入
+  sell_lg_vol?: number;   // 大单卖出
+  net_mf_vol?: number;    // 净流入
+}
+
+/**
+ * 每日指标数据
+ */
+export interface DailyBasicData {
+  ts_code: string;
+  pe_ttm?: number;        // 市盈率 TTM
+  pb?: number;            // 市净率
+  ps_ttm?: number;        // 市销率
+  pcf_ratio?: number;     // 市现率
+  turnover?: number;      // 换手率
+  volume_ratio?: number;  // 量比
+  total_mv?: number;      // 总市值
+  circ_mv?: number;       // 流通市值
+}
+
+/**
  * 数据转换工具函数
  * 将 Tushare 的数组格式转换为对象数组
  */
@@ -43,12 +132,12 @@ function transformTushareData<T extends Record<string, any>>(
   }
 
   const { fields, items } = response.data;
-  
+
   return items.map(item =>
-    fields.reduce((obj, field, i) => {
+    fields.reduce((obj: Record<string, any>, field, i) => {
       obj[field] = item[i];
       return obj;
-    }, {} as T)
+    }, {}) as T
   );
 }
 
@@ -333,5 +422,152 @@ export class TushareSource extends BaseDataSource {
     if (symbol.includes('.SZ')) return 'SZ';
     if (symbol.includes('.HK')) return 'HK';
     return 'CN';
+  }
+
+  /**
+   * 获取龙虎榜数据
+   * 接口：top_list
+   *
+   * @param date 交易日期（可选，格式：YYYYMMDD）
+   * @returns 龙虎榜数据数组
+   */
+  async getTopList(date?: string): Promise<TopListData[]> {
+    const tradeDate = date || this.getLatestTradeDate();
+
+    const data = await this.fetchWithRetry(async () => {
+      if (!this.token) {
+        throw new Error('Tushare API token is not configured');
+      }
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_name: 'top_list',
+          token: this.token,
+          params: { trade_date: tradeDate },
+          fields: 'ts_code,name,reason,buy_amount,sell_amount,net_amount'
+        })
+      });
+
+      const result: TushareResponse = await response.json();
+
+      if (result.code !== 0) {
+        throw new Error(result.msg || 'Tushare API error');
+      }
+
+      return transformTushareData<TopListData>(result);
+    });
+
+    if (!data) {
+      throw new Error('Failed to fetch top list after retries');
+    }
+
+    return data;
+  }
+
+  /**
+   * 获取资金流向数据
+   * 接口：moneyflow
+   *
+   * @param symbol 股票代码（如 600519.SS 或 600519）
+   * @param tradeDate 交易日期（可选，格式：YYYYMMDD）
+   * @returns 资金流向数据
+   */
+  async getMoneyFlow(symbol: string, tradeDate?: string): Promise<MoneyFlowData> {
+    const tsCode = StockCodeValidator.toTushareCode(symbol);
+    const date = tradeDate || this.getLatestTradeDate();
+
+    const data = await this.fetchWithRetry(async () => {
+      if (!this.token) {
+        throw new Error('Tushare API token is not configured');
+      }
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_name: 'moneyflow',
+          token: this.token,
+          params: { ts_code: tsCode, trade_date: date },
+          fields: 'ts_code,trade_date,buy_elg_vol,sell_elg_vol,buy_lg_vol,sell_lg_vol,net_mf_vol'
+        })
+      });
+
+      const result: TushareResponse = await response.json();
+
+      if (result.code !== 0) {
+        throw new Error(result.msg || 'Tushare API error');
+      }
+
+      const records = transformTushareData<MoneyFlowData>(result);
+      if (records.length === 0) {
+        throw new Error('No money flow data available');
+      }
+
+      return records[0];
+    });
+
+    if (!data) {
+      throw new Error('Failed to fetch money flow after retries');
+    }
+
+    return data;
+  }
+
+  /**
+   * 获取每日指标数据
+   * 接口：daily_basic (PE、PB、换手率等)
+   *
+   * @param symbol 股票代码（如 600519.SS 或 600519）
+   * @param tradeDate 交易日期（可选，格式：YYYYMMDD）
+   * @returns 每日指标数据
+   */
+  async getDailyBasic(symbol: string, tradeDate?: string): Promise<DailyBasicData> {
+    const tsCode = StockCodeValidator.toTushareCode(symbol);
+    const date = tradeDate;
+
+    const data = await this.fetchWithRetry(async () => {
+      if (!this.token) {
+        throw new Error('Tushare API token is not configured');
+      }
+
+      // 构建请求参数
+      const params: any = { ts_code: tsCode };
+      if (date) {
+        params.trade_date = date;
+      }
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_name: 'daily_basic',
+          token: this.token,
+          params: params,
+          fields: 'ts_code,trade_date,pe_ttm,pb,ps_ttm,pcf_ratio,turnover,volume_ratio,total_mv,circ_mv'
+        })
+      });
+
+      const result: TushareResponse = await response.json();
+
+      if (result.code !== 0) {
+        throw new Error(result.msg || 'Tushare API error');
+      }
+
+      const records = transformTushareData<DailyBasicData>(result);
+      if (records.length === 0) {
+        throw new Error('No daily basic data available');
+      }
+
+      // 如果没有指定日期，返回最新的一条记录
+      return date ? records[0] : records[0];
+    });
+
+    if (!data) {
+      throw new Error('Failed to fetch daily basic after retries');
+    }
+
+    return data;
   }
 }
