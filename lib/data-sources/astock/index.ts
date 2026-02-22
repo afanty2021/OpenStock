@@ -15,3 +15,10 @@ export {
   MarketType,
   EXCHANGE_SUFFIX,
 } from './code-util';
+
+// 导出涨跌停检测器
+export {
+  LimitDetector,
+  type LimitStatus,
+  type LimitPrediction,
+} from './limit-detector';
