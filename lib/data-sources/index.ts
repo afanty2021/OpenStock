@@ -112,3 +112,10 @@ export {
   failoverManager,
   FailoverManager,
 } from './alerting/failover';
+
+// A 股功能模块导出
+export {
+  AStockCodeUtil,
+  MarketType,
+  EXCHANGE_SUFFIX,
+} from './astock';
