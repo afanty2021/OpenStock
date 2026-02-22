@@ -22,3 +22,11 @@ export {
   type LimitStatus,
   type LimitPrediction,
 } from './limit-detector';
+
+// 导出交易日历管理
+export {
+  TradingCalendar,
+  type TradingStatusCode,
+  type TradingStatus,
+  type TradingSession,
+} from './trading-calendar';
