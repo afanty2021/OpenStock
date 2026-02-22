@@ -175,18 +175,19 @@ describe('LimitDetector', () => {
         const quote = createQuote({
           symbol: '600519.SH',
           pc: 100,
-          c: 105,
-          dp: 5,
+          c: 108,
+          dp: 8,
         });
 
         const prediction = LimitDetector.predictLimitDistance(quote);
 
-        expect(prediction.toUpper.pct).toBeCloseTo(5, 1);
-        expect(prediction.toUpper.price).toBeCloseTo(5, 1);
+        // 距离涨停 2%，小于 10% * 0.3 = 3%，可触及
+        expect(prediction.toUpper.pct).toBeCloseTo(2, 1);
+        expect(prediction.toUpper.price).toBeCloseTo(2, 1);
         expect(prediction.toUpper.reachable).toBe(true);
 
-        expect(prediction.toLower.pct).toBeCloseTo(15, 1);
-        expect(prediction.toLower.price).toBeCloseTo(15, 1);
+        expect(prediction.toLower.pct).toBeCloseTo(18, 1);
+        expect(prediction.toLower.price).toBeCloseTo(18, 1);
         expect(prediction.toLower.reachable).toBe(false);
       });
 
@@ -194,18 +195,19 @@ describe('LimitDetector', () => {
         const quote = createQuote({
           symbol: '600519.SH',
           pc: 100,
-          c: 95,
-          dp: -5,
+          c: 92,
+          dp: -8,
         });
 
         const prediction = LimitDetector.predictLimitDistance(quote);
 
-        expect(prediction.toUpper.pct).toBeCloseTo(15, 1);
-        expect(prediction.toUpper.price).toBeCloseTo(15, 1);
+        expect(prediction.toUpper.pct).toBeCloseTo(18, 1);
+        expect(prediction.toUpper.price).toBeCloseTo(18, 1);
         expect(prediction.toUpper.reachable).toBe(false);
 
-        expect(prediction.toLower.pct).toBeCloseTo(5, 1);
-        expect(prediction.toLower.price).toBeCloseTo(5, 1);
+        // 距离跌停 2%，小于 10% * 0.3 = 3%，可触及
+        expect(prediction.toLower.pct).toBeCloseTo(2, 1);
+        expect(prediction.toLower.price).toBeCloseTo(2, 1);
         expect(prediction.toLower.reachable).toBe(true);
       });
 
@@ -250,18 +252,19 @@ describe('LimitDetector', () => {
         const quote = createQuote({
           symbol: '688001.SH',
           pc: 100,
-          c: 110,
-          dp: 10,
+          c: 116,
+          dp: 16,
         });
 
         const prediction = LimitDetector.predictLimitDistance(quote);
 
-        expect(prediction.toUpper.pct).toBeCloseTo(10, 1);
-        expect(prediction.toUpper.price).toBeCloseTo(10, 1);
+        // 距离涨停 4%，小于 20% * 0.3 = 6%，可触及
+        expect(prediction.toUpper.pct).toBeCloseTo(4, 1);
+        expect(prediction.toUpper.price).toBeCloseTo(4, 1);
         expect(prediction.toUpper.reachable).toBe(true);
 
-        expect(prediction.toLower.pct).toBeCloseTo(30, 1);
-        expect(prediction.toLower.price).toBeCloseTo(30, 1);
+        expect(prediction.toLower.pct).toBeCloseTo(36, 1);
+        expect(prediction.toLower.price).toBeCloseTo(36, 1);
         expect(prediction.toLower.reachable).toBe(false);
       });
     });
@@ -271,14 +274,15 @@ describe('LimitDetector', () => {
         const quote = createQuote({
           symbol: '832566.BJ',
           pc: 100,
-          c: 115,
-          dp: 15,
+          c: 123,
+          dp: 23,
         });
 
         const prediction = LimitDetector.predictLimitDistance(quote);
 
-        expect(prediction.toUpper.pct).toBeCloseTo(15, 1);
-        expect(prediction.toUpper.price).toBeCloseTo(15, 1);
+        // 距离涨停 7%，小于 30% * 0.3 = 9%，可触及
+        expect(prediction.toUpper.pct).toBeCloseTo(7, 1);
+        expect(prediction.toUpper.price).toBeCloseTo(7, 1);
         expect(prediction.toUpper.reachable).toBe(true);
       });
     });

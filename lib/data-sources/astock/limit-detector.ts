@@ -49,9 +49,9 @@ const TOLERANCE_RATIO = 0.005;
  * 可触及性判断阈值
  *
  * 当距离涨跌停的百分比小于此阈值时，认为可以触及
- * 默认为 50%，即距离涨跌停不到 50% 的空间时认为可以触及
+ * 默认为 30%，即距离涨跌停不到 30% 的空间时认为可以触及
  */
-const REACHABLE_THRESHOLD = 0.5;
+const REACHABLE_THRESHOLD = 0.3;
 
 /**
  * 默认接近阈值
@@ -60,6 +60,23 @@ const REACHABLE_THRESHOLD = 0.5;
  * 默认为 70%，即距离涨跌停不到 70% 的空间时认为接近
  */
 const DEFAULT_NEAR_THRESHOLD = 0.7;
+
+/**
+ * 浮点数精度小数位数
+ *
+ * 用于修正百分比计算的浮点精度问题
+ */
+const DECIMAL_PLACES = 10;
+
+/**
+ * 零值常量
+ */
+const ZERO = 0;
+
+/**
+ * 最小有效值常量
+ */
+const MIN_VALID_VALUE = 0;
 
 /**
  * A 股涨跌停检测器
@@ -118,8 +135,8 @@ export class LimitDetector {
     // 获取涨跌停限制比例
     const limitPct = AStockCodeUtil.getLimitPct(quote.symbol);
 
-    // 非 A 股股票或限制为 0%，返回正常状态
-    if (limitPct === 0) {
+    // 验证 limitPct 返回值有效性
+    if (typeof limitPct !== 'number' || isNaN(limitPct) || limitPct <= MIN_VALID_VALUE) {
       return 'NORMAL';
     }
 
@@ -174,11 +191,11 @@ export class LimitDetector {
     // 获取涨跌停限制比例
     const limitPct = AStockCodeUtil.getLimitPct(quote.symbol);
 
-    // 非 A 股股票或限制为 0%，返回零值
-    if (limitPct === 0 || !this.isValidQuoteData(quote)) {
+    // 验证 limitPct 返回值有效性
+    if (typeof limitPct !== 'number' || isNaN(limitPct) || limitPct <= MIN_VALID_VALUE || !this.isValidQuoteData(quote)) {
       return {
-        toUpper: { pct: 0, price: 0, reachable: false },
-        toLower: { pct: 0, price: 0, reachable: false },
+        toUpper: { pct: ZERO, price: ZERO, reachable: false },
+        toLower: { pct: ZERO, price: ZERO, reachable: false },
       };
     }
 
@@ -186,32 +203,32 @@ export class LimitDetector {
     const currentPrice = quote.c;
     const prevClose = quote.pc;
 
-    // 计算距离涨跌停的百分比
-    const upperDistancePct = limitPct - currentPct;
-    const lowerDistancePct = limitPct + currentPct;
+    // 计算距离涨跌停的百分比（使用 toFixed 修正浮点精度）
+    const upperDistancePct = parseFloat((limitPct - currentPct).toFixed(DECIMAL_PLACES));
+    const lowerDistancePct = parseFloat((limitPct + currentPct).toFixed(DECIMAL_PLACES));
 
     // 计算涨停价和跌停价
     const upperLimitPrice = prevClose * (1 + limitPct / 100);
     const lowerLimitPrice = prevClose * (1 - limitPct / 100);
 
-    // 计算距离涨跌停的金额
-    const upperDistancePrice = upperLimitPrice - currentPrice;
-    const lowerDistancePrice = currentPrice - lowerLimitPrice;
+    // 计算距离涨跌停的金额（使用 toFixed 修正浮点精度）
+    const upperDistancePrice = parseFloat((upperLimitPrice - currentPrice).toFixed(DECIMAL_PLACES));
+    const lowerDistancePrice = parseFloat((currentPrice - lowerLimitPrice).toFixed(DECIMAL_PLACES));
 
     // 判断是否可触及
-    // 条件：距离为正且小于或等于限制的 50%
-    const toUpperReachable = upperDistancePct > 0 && upperDistancePct <= limitPct * REACHABLE_THRESHOLD;
-    const toLowerReachable = lowerDistancePct > 0 && lowerDistancePct <= limitPct * REACHABLE_THRESHOLD;
+    // 条件：距离为正且小于或等于限制的 30%
+    const toUpperReachable = upperDistancePct > ZERO && upperDistancePct <= limitPct * REACHABLE_THRESHOLD;
+    const toLowerReachable = lowerDistancePct > ZERO && lowerDistancePct <= limitPct * REACHABLE_THRESHOLD;
 
     return {
       toUpper: {
-        pct: Math.max(0, upperDistancePct),
-        price: Math.max(0, upperDistancePrice),
+        pct: Math.max(ZERO, upperDistancePct),
+        price: Math.max(ZERO, upperDistancePrice),
         reachable: toUpperReachable,
       },
       toLower: {
-        pct: Math.max(0, lowerDistancePct),
-        price: Math.max(0, lowerDistancePrice),
+        pct: Math.max(ZERO, lowerDistancePct),
+        price: Math.max(ZERO, lowerDistancePrice),
         reachable: toLowerReachable,
       },
     };
@@ -241,23 +258,23 @@ export class LimitDetector {
    * ```
    */
   static isNearLimit(quote: QuoteData, threshold: number = DEFAULT_NEAR_THRESHOLD): boolean {
-    if (threshold < 0 || threshold > 1) {
+    if (threshold < ZERO || threshold > 1) {
       throw new Error('Threshold must be between 0 and 1');
     }
 
     const prediction = this.predictLimitDistance(quote);
     const limitPct = AStockCodeUtil.getLimitPct(quote.symbol);
 
-    // 非 A 股股票或限制为 0%，返回 false
-    if (limitPct === 0) {
+    // 验证 limitPct 返回值有效性
+    if (typeof limitPct !== 'number' || isNaN(limitPct) || limitPct <= MIN_VALID_VALUE) {
       return false;
     }
 
     // 判断是否接近涨停或跌停
     // 使用自定义阈值而非 prediction 中的 reachable
     const nearThreshold = limitPct * threshold;
-    return prediction.toUpper.pct > 0 && prediction.toUpper.pct <= nearThreshold ||
-           prediction.toLower.pct > 0 && prediction.toLower.pct <= nearThreshold;
+    return prediction.toUpper.pct > ZERO && prediction.toUpper.pct <= nearThreshold ||
+           prediction.toLower.pct > ZERO && prediction.toLower.pct <= nearThreshold;
   }
 
   /**
@@ -272,12 +289,12 @@ export class LimitDetector {
    */
   private static isValidQuoteData(quote: QuoteData): boolean {
     // 检查当前价格
-    if (typeof quote.c !== 'number' || isNaN(quote.c) || quote.c < 0) {
+    if (typeof quote.c !== 'number' || isNaN(quote.c) || quote.c < ZERO) {
       return false;
     }
 
     // 检查前收盘价
-    if (typeof quote.pc !== 'number' || isNaN(quote.pc) || quote.pc <= 0) {
+    if (typeof quote.pc !== 'number' || isNaN(quote.pc) || quote.pc <= MIN_VALID_VALUE) {
       return false;
     }
 
