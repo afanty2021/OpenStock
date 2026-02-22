@@ -71,6 +71,22 @@ const FINNHUB_SUFFIXES = {
 } as const;
 
 /**
+ * 涨跌停限制比例常量
+ */
+const LIMIT_PCT = {
+  /** 主板股票涨跌停限制 */
+  MAIN_BOARD: 10,
+  /** 科创板/创业板涨跌停限制 */
+  STAR_GEM: 20,
+  /** 北交所涨跌停限制 */
+  BSE: 30,
+  /** ST 股票涨跌停限制 */
+  ST: 5,
+  /** 非 A 股股票（无限制） */
+  NON_ASTOCK: 0,
+} as const;
+
+/**
  * A 股代码格式标准化工具类
  *
  * 提供以下功能：
@@ -160,25 +176,25 @@ export class AStockCodeUtil {
     const marketType = this.getMarketType(symbol);
 
     // 非 A 股返回 0
-    if (!marketType) return 0;
+    if (!marketType) return LIMIT_PCT.NON_ASTOCK;
 
     // ST 股票判断（优先级最高）
     if (name && this.isSTStock(name)) {
-      return 5;
+      return LIMIT_PCT.ST;
     }
 
     // 根据市场类型返回涨跌停限制
     switch (marketType) {
       case MarketType.SH_MAIN:
       case MarketType.SZ_MAIN:
-        return 10;
+        return LIMIT_PCT.MAIN_BOARD;
       case MarketType.SH_STAR:
       case MarketType.SZ_GEM:
-        return 20;
+        return LIMIT_PCT.STAR_GEM;
       case MarketType.BSE:
-        return 30;
+        return LIMIT_PCT.BSE;
       default:
-        return 0;
+        return LIMIT_PCT.NON_ASTOCK;
     }
   }
 
@@ -349,6 +365,11 @@ export class AStockCodeUtil {
   static extractCode(symbol: string): string {
     if (!symbol) return '';
 
+    // 先检查是否包含 '.'，避免不必要的正则替换操作
+    if (!symbol.includes('.')) {
+      return symbol;
+    }
+
     // 移除交易所后缀
     return symbol.replace(/\.(SH|SZ|BJ|SS|se|SS)$/i, '');
   }
@@ -357,7 +378,7 @@ export class AStockCodeUtil {
    * 判断是否为 ST 股票
    *
    * ST 股票的涨跌停限制为 5%
-   * 匹配规则：名称包含 ST、*ST、S*ST（不区分大小写）
+   * 匹配规则：名称以 ST、*ST、S*ST 开头（不区分大小写）
    *
    * @param name - 股票名称
    * @returns 是否为 ST 股票
@@ -366,17 +387,30 @@ export class AStockCodeUtil {
    *
    * @example
    * ```ts
-   * AStockCodeUtil.isSTStock('STPingAn') // true
-   * AStockCodeUtil.isSTStock('*STPingAn') // true
-   * AStockCodeUtil.isSTStock('S*STPingAn') // true
+   * AStockCodeUtil.isSTStock('ST东方') // true
+   * AStockCodeUtil.isSTStock('*ST中安') // true
+   * AStockCodeUtil.isSTStock('S*ST华业') // true
    * AStockCodeUtil.isSTStock('贵州茅台') // false
+   * AStockCodeUtil.isSTStock('平安ST') // false（不在开头）
    * ```
    */
   private static isSTStock(name: string): boolean {
-    if (!name) return false;
+    if (!this.validateStringInput(name)) return false;
 
-    // 匹配 ST、*ST、S*ST（不区分大小写，支持中英文）
-    const stPattern = /(\*ST|S\*ST|ST)/i;
-    return stPattern.test(name.trim());
+    // 只匹配开头的 ST 标记：*ST、S*ST、ST（不区分大小写）
+    const trimmedName = name.trim().toUpperCase();
+    return /^(\*ST|S\*ST|ST)/.test(trimmedName);
+  }
+
+  /**
+   * 验证字符串输入
+   *
+   * @param value - 待验证的值
+   * @returns 是否为有效的非空字符串
+   *
+   * @private
+   */
+  private static validateStringInput(value: unknown): value is string {
+    return typeof value === 'string' && value.length > 0;
   }
 }

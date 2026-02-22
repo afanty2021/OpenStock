@@ -235,23 +235,25 @@ describe('AStockCodeUtil', () => {
 
     describe('ST 股票 (5%)', () => {
       it('应识别 ST 前缀', () => {
-        expect(AStockCodeUtil.getLimitPct('600519.SH', 'STPingAn')).toBe(5);
-        expect(AStockCodeUtil.getLimitPct('600519.SH', 'st-ping-an')).toBe(5);
+        expect(AStockCodeUtil.getLimitPct('600519.SH', 'ST东方')).toBe(5);
+        expect(AStockCodeUtil.getLimitPct('600519.SH', 'st-orient')).toBe(5);
+        expect(AStockCodeUtil.getLimitPct('600519.SH', 'ST盐湖')).toBe(5);
       });
 
       it('应识别 *ST 前缀', () => {
-        expect(AStockCodeUtil.getLimitPct('600519.SH', '*STPingAn')).toBe(5);
-        expect(AStockCodeUtil.getLimitPct('600519.SH', '*st-ping-an')).toBe(5);
+        expect(AStockCodeUtil.getLimitPct('600519.SH', '*ST中安')).toBe(5);
+        expect(AStockCodeUtil.getLimitPct('600519.SH', '*st-zhongan')).toBe(5);
       });
 
       it('应识别 S*ST 前缀', () => {
-        expect(AStockCodeUtil.getLimitPct('600519.SH', 'S*STPingAn')).toBe(5);
-        expect(AStockCodeUtil.getLimitPct('600519.SH', 's*st-ping-an')).toBe(5);
+        expect(AStockCodeUtil.getLimitPct('600519.SH', 'S*ST华业')).toBe(5);
+        expect(AStockCodeUtil.getLimitPct('600519.SH', 's*st-huaye')).toBe(5);
       });
 
-      it('应识别 ST 在名称中间', () => {
-        expect(AStockCodeUtil.getLimitPct('600519.SH', '平安ST')).toBe(5);
-        expect(AStockCodeUtil.getLimitPct('600519.SH', 'Ping An ST')).toBe(5);
+      it('应拒绝 ST 不在开头的名称', () => {
+        expect(AStockCodeUtil.getLimitPct('600519.SH', '平安ST')).toBe(10);
+        expect(AStockCodeUtil.getLimitPct('600519.SH', 'Ping An ST')).toBe(10);
+        expect(AStockCodeUtil.getLimitPct('600519.SH', '茅台ST')).toBe(10);
       });
 
       it('应忽略非 ST 股票', () => {
