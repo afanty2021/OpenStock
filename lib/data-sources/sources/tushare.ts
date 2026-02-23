@@ -94,15 +94,57 @@ export interface TopListData {
 }
 
 /**
- * 资金流向数据
+ * 资金流向数据（完整版）
+ *
+ * Tushare moneyflow 接口返回的资金流向数据
+ * 包含主力、超大单、大单、中单、小单的买卖量和净额
  */
 export interface MoneyFlowData {
-  ts_code: string;
-  buy_elg_vol?: number;   // 买入量
-  sell_elg_vol?: number;  // 卖出量
-  buy_lg_vol?: number;    // 大单买入
-  sell_lg_vol?: number;   // 大单卖出
-  net_mf_vol?: number;    // 净流入
+  ts_code: string;          // 股票代码
+  trade_date: string;       // 交易日期
+
+  // 主力净流入
+  net_mf_vol?: number;      // 主力净流入量(手)
+  net_mf_amount?: number;   // 主力净流入额(万元)
+
+  // 超大单(>=100万元)
+  net_buy_mf_vol?: number;  // 超大单净买入量(手)
+  net_buy_mf_amount?: number; // 超大单净买入额(万元)
+
+  // 大单(20-100万元)
+  net_buy_elg_vol?: number;   // 大单净买入量(手)
+  net_buy_elg_amount?: number; // 大单净买入额(万元)
+
+  // 中单(5-20万元)
+  net_buy_nr_vol?: number;   // 中单净买入量(手)
+  net_buy_nr_amount?: number; // 中单净买入额(万元)
+
+  // 小单(<5万元，散户)
+  net_buy_lg_vol?: number;   // 小单净买入量(手)
+  net_buy_lg_amount?: number; // 小单净买入额(万元)
+
+  // 以下是详细分类字段（保留向后兼容）
+  buy_elg_vol?: number;   // 大单买入量(手)
+  sell_elg_vol?: number;  // 大单卖出量(手)
+  buy_lg_vol?: number;    // 小单买入量(手)
+  sell_lg_vol?: number;   // 小单卖出量(手)
+}
+
+/**
+ * 资金流向查询选项
+ */
+export interface MoneyFlowOptions {
+  /** 股票代码（如 600519.SH 或 600519） */
+  tsCode: string;
+
+  /** 开始日期（格式：YYYYMMDD） */
+  startDate?: string;
+
+  /** 结束日期（格式：YYYYMMDD） */
+  endDate?: string;
+
+  /** 返回条数限制 */
+  limit?: number;
 }
 
 /**
@@ -563,13 +605,53 @@ export class TushareSource extends BaseDataSource {
    * 获取资金流向数据
    * 接口：moneyflow
    *
-   * @param symbol 股票代码（如 600519.SS 或 600519）
-   * @param tradeDate 交易日期（可选，格式：YYYYMMDD）
-   * @returns 资金流向数据
+   * 支持单日查询、日期范围查询和批量查询
+   *
+   * @param options 查询选项
+   * @param options.tsCode 股票代码（如 600519.SH 或 600519）
+   * @param options.startDate 开始日期（格式：YYYYMMDD），默认为最新交易日
+   * @param options.endDate 结束日期（格式：YYYYMMDD），默认与 startDate 相同
+   * @param options.limit 返回条数限制
+   * @returns 资金流向数据数组
+   *
+   * @example
+   * ```ts
+   * // 获取当日资金流向
+   * const today = await tushare.getMoneyFlow({ tsCode: '600519.SH' });
+   *
+   * // 获取指定日期资金流向
+   * const singleDay = await tushare.getMoneyFlow({
+   *   tsCode: '600519.SH',
+   *   startDate: '20260220',
+   *   endDate: '20260220',
+   * });
+   *
+   * // 获取日期范围资金流向
+   * const range = await tushare.getMoneyFlow({
+   *   tsCode: '600519.SH',
+   *   startDate: '20260201',
+   *   endDate: '20260220',
+   * });
+   *
+   * // 获取最近10天资金流向
+   * const recent10 = await tushare.getMoneyFlow({
+   *   tsCode: '600519.SH',
+   *   limit: 10,
+   * });
+   * ```
    */
-  async getMoneyFlow(symbol: string, tradeDate?: string): Promise<MoneyFlowData> {
-    const tsCode = StockCodeValidator.toTushareCode(symbol);
-    const date = tradeDate || this.getLatestTradeDate();
+  async getMoneyFlow(options: MoneyFlowOptions): Promise<MoneyFlowData[]> {
+    const tsCode = StockCodeValidator.toTushareCode(options.tsCode);
+    const startDate = options.startDate || this.getLatestTradeDate();
+    const endDate = options.endDate || startDate;
+
+    // 验证日期格式
+    if (!this.isValidTradeDate(startDate)) {
+      throw new Error(`Invalid start date: ${startDate}. Must be a valid trading date in YYYYMMDD format.`);
+    }
+    if (endDate && !this.isValidTradeDate(endDate)) {
+      throw new Error(`Invalid end date: ${endDate}. Must be a valid trading date in YYYYMMDD format.`);
+    }
 
     // fetchWithRetry 会在全部重试失败后抛出原始错误
     // 不需要检查 null，直接使用返回值
@@ -578,14 +660,42 @@ export class TushareSource extends BaseDataSource {
         throw new Error('Tushare API token is not configured');
       }
 
+      // 构建请求参数
+      const params: Record<string, string> = {
+        ts_code: tsCode,
+        start_date: startDate,
+      };
+
+      if (endDate) {
+        params.end_date = endDate;
+      }
+
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           api_name: 'moneyflow',
           token: this.token,
-          params: { ts_code: tsCode, trade_date: date },
-          fields: 'ts_code,trade_date,buy_elg_vol,sell_elg_vol,buy_lg_vol,sell_lg_vol,net_mf_vol'
+          params,
+          fields: [
+            'ts_code',
+            'trade_date',
+            // 主力净流入
+            'net_mf_vol',
+            'net_mf_amount',
+            // 超大单
+            'net_buy_mf_vol',
+            'net_buy_mf_amount',
+            // 大单
+            'net_buy_elg_vol',
+            'net_buy_elg_amount',
+            // 中单
+            'net_buy_nr_vol',
+            'net_buy_nr_amount',
+            // 小单
+            'net_buy_lg_vol',
+            'net_buy_lg_amount',
+          ].join(','),
         })
       });
 
@@ -602,8 +712,16 @@ export class TushareSource extends BaseDataSource {
         throw new Error('No money flow data available');
       }
 
-      return records[0];
+      return records;
     });
+
+    // 应用 limit 限制
+    // limit > 0: 返回前 N 条记录
+    // limit <= 0 或 undefined: 返回所有记录（无限制）
+    const limit = options.limit;
+    if (limit && limit > 0 && data.length > limit) {
+      return data.slice(0, limit);
+    }
 
     return data;
   }

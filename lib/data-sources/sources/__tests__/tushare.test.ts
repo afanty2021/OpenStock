@@ -704,14 +704,27 @@ describe('TushareSource', () => {
     });
   });
 
-  describe('getMoneyFlow - 资金流向', () => {
-    test('应获取资金流向数据', async () => {
+  describe('getMoneyFlow - 资金流向（扩展版）', () => {
+    test('应获取当日资金流向数据（单条记录）', async () => {
       const mockResponse = {
         code: 0,
         msg: null,
         data: {
-          fields: ['ts_code', 'trade_date', 'buy_elg_vol', 'sell_elg_vol', 'buy_lg_vol', 'sell_lg_vol', 'net_mf_vol'],
-          items: [['600519.SH', '20260223', 1000, 800, 500, 400, 100]],
+          fields: [
+            'ts_code',
+            'trade_date',
+            'net_mf_vol',
+            'net_mf_amount',
+            'net_buy_mf_vol',
+            'net_buy_mf_amount',
+            'net_buy_elg_vol',
+            'net_buy_elg_amount',
+            'net_buy_nr_vol',
+            'net_buy_nr_amount',
+            'net_buy_lg_vol',
+            'net_buy_lg_amount',
+          ],
+          items: [['600519.SH', '20260223', 1234567, 12345.67, 2345678, 23456.78, 3456789, 34567.89, 4567890, 45678.90, 5678901, 56789.01]],
         },
       };
 
@@ -719,21 +732,37 @@ describe('TushareSource', () => {
         json: async () => mockResponse,
       });
 
-      const result = await tushare.getMoneyFlow('600519.SH');
+      const result = await tushare.getMoneyFlow({ tsCode: '600519.SH' });
 
-      expect(result).toBeDefined();
-      expect(result.ts_code).toBe('600519.SH');
-      expect(result.buy_elg_vol).toBe(1000);
-      expect(result.sell_elg_vol).toBe(800);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        ts_code: '600519.SH',
+        trade_date: '20260223',
+        net_mf_vol: 1234567,
+        net_mf_amount: 12345.67,
+      });
     });
 
-    test('应支持指定交易日期', async () => {
+    test('应包含所有资金流向字段', async () => {
       const mockResponse = {
         code: 0,
         msg: null,
         data: {
-          fields: ['ts_code', 'trade_date', 'buy_elg_vol', 'sell_elg_vol', 'buy_lg_vol', 'sell_lg_vol', 'net_mf_vol'],
-          items: [['600519.SH', '20260220', 1000, 800, 500, 400, 100]],
+          fields: [
+            'ts_code',
+            'trade_date',
+            'net_mf_vol',
+            'net_mf_amount',
+            'net_buy_mf_vol',
+            'net_buy_mf_amount',
+            'net_buy_elg_vol',
+            'net_buy_elg_amount',
+            'net_buy_nr_vol',
+            'net_buy_nr_amount',
+            'net_buy_lg_vol',
+            'net_buy_lg_amount',
+          ],
+          items: [['600519.SH', '20260223', 1234567, 12345.67, 2345678, 23456.78, 3456789, 34567.89, 4567890, 45678.90, 5678901, 56789.01]],
         },
       };
 
@@ -741,10 +770,168 @@ describe('TushareSource', () => {
         json: async () => mockResponse,
       });
 
-      await tushare.getMoneyFlow('600519.SH', '20260220');
+      const result = await tushare.getMoneyFlow({ tsCode: '600519.SH' });
+
+      expect(result[0]).toMatchObject({
+        ts_code: expect.any(String),
+        trade_date: expect.any(String),
+        net_mf_vol: expect.any(Number),
+        net_mf_amount: expect.any(Number),
+        net_buy_mf_vol: expect.any(Number),
+        net_buy_mf_amount: expect.any(Number),
+        net_buy_elg_vol: expect.any(Number),
+        net_buy_elg_amount: expect.any(Number),
+        net_buy_nr_vol: expect.any(Number),
+        net_buy_nr_amount: expect.any(Number),
+        net_buy_lg_vol: expect.any(Number),
+        net_buy_lg_amount: expect.any(Number),
+      });
+    });
+
+    test('应支持日期范围查询', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: [
+            'ts_code',
+            'trade_date',
+            'net_mf_vol',
+            'net_mf_amount',
+            'net_buy_mf_vol',
+            'net_buy_mf_amount',
+            'net_buy_elg_vol',
+            'net_buy_elg_amount',
+            'net_buy_nr_vol',
+            'net_buy_nr_amount',
+            'net_buy_lg_vol',
+            'net_buy_lg_amount',
+          ],
+          items: [
+            ['600519.SH', '20260220', 1234567, 12345.67, 2345678, 23456.78, 3456789, 34567.89, 4567890, 45678.90, 5678901, 56789.01],
+            ['600519.SH', '20260219', 2345678, 23456.78, 3456789, 34567.89, 4567890, 45678.90, 5678901, 56789.01, 6789012, 67890.12],
+          ],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getMoneyFlow({
+        tsCode: '600519.SH',
+        startDate: '20260219',
+        endDate: '20260220',
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result[0].trade_date).toBe('20260220');
+      expect(result[1].trade_date).toBe('20260219');
+    });
+
+    test('应限制返回条数', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: [
+            'ts_code',
+            'trade_date',
+            'net_mf_vol',
+            'net_mf_amount',
+            'net_buy_mf_vol',
+            'net_buy_mf_amount',
+            'net_buy_elg_vol',
+            'net_buy_elg_amount',
+            'net_buy_nr_vol',
+            'net_buy_nr_amount',
+            'net_buy_lg_vol',
+            'net_buy_lg_amount',
+          ],
+          items: [
+            ['600519.SH', '20260220', 1234567, 12345.67, 2345678, 23456.78, 3456789, 34567.89, 4567890, 45678.90, 5678901, 56789.01],
+            ['600519.SH', '20260219', 2345678, 23456.78, 3456789, 34567.89, 4567890, 45678.90, 5678901, 56789.01, 6789012, 67890.12],
+          ],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getMoneyFlow({
+        tsCode: '600519.SH',
+        startDate: '20260219',
+        endDate: '20260220',
+        limit: 1,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].trade_date).toBe('20260220');
+    });
+
+    test('应正确转换 Finnhub 格式代码', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: [
+            'ts_code',
+            'trade_date',
+            'net_mf_vol',
+            'net_mf_amount',
+            'net_buy_mf_vol',
+            'net_buy_mf_amount',
+            'net_buy_elg_vol',
+            'net_buy_elg_amount',
+            'net_buy_nr_vol',
+            'net_buy_nr_amount',
+            'net_buy_lg_vol',
+            'net_buy_lg_amount',
+          ],
+          items: [['600519.SH', '20260223', 1234567, 12345.67, 2345678, 23456.78, 3456789, 34567.89, 4567890, 45678.90, 5678901, 56789.01]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await tushare.getMoneyFlow({ tsCode: '600519.SS' }); // Finnhub 格式
 
       const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(callArgs.params.trade_date).toBe('20260220');
+      expect(callArgs.params.ts_code).toBe('600519.SH'); // Tushare 格式
+    });
+
+    test('无效日期格式时应抛出异常', async () => {
+      await expect(
+        tushare.getMoneyFlow({
+          tsCode: '600519.SH',
+          startDate: '2026-02-20', // 错误格式
+        })
+      ).rejects.toThrow('Invalid start date');
+    });
+
+    test('API 返回错误时应抛出异常', async () => {
+      const mockResponse = {
+        code: -1,
+        msg: 'Invalid API token',
+        data: null,
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await expect(
+        tushare.getMoneyFlow({ tsCode: '600519.SH' })
+      ).rejects.toThrow('Tushare API error (code: -1): Invalid API token');
     });
 
     test('无数据时应抛出异常', async () => {
@@ -752,16 +939,38 @@ describe('TushareSource', () => {
         code: 0,
         msg: null,
         data: {
-          fields: ['ts_code', 'trade_date', 'buy_elg_vol', 'sell_elg_vol', 'buy_lg_vol', 'sell_lg_vol', 'net_mf_vol'],
+          fields: [
+            'ts_code',
+            'trade_date',
+            'net_mf_vol',
+            'net_mf_amount',
+            'net_buy_mf_vol',
+            'net_buy_mf_amount',
+            'net_buy_elg_vol',
+            'net_buy_elg_amount',
+            'net_buy_nr_vol',
+            'net_buy_nr_amount',
+            'net_buy_lg_vol',
+            'net_buy_lg_amount',
+          ],
           items: [],
         },
       };
 
+      // 需要 mock 3 次因为重试机制
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
       mockFetch.mockResolvedValueOnce({
         json: async () => mockResponse,
       });
 
-      await expect(tushare.getMoneyFlow('600519.SH')).rejects.toThrow();
+      await expect(
+        tushare.getMoneyFlow({ tsCode: '600519.SH' })
+      ).rejects.toThrow('No money flow data available');
     });
   });
 
