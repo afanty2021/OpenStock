@@ -223,6 +223,7 @@ declare global {
         buyAmount: number;
         sellAmount: number;
         netAmount: number;
+        rank: number;
         tradeDate: string;
     };
 

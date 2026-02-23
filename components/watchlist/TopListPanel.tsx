@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { TrendingUp, TrendingDown, AlertCircle, RefreshCw } from "lucide-react";
-import { getTopListData } from "@/lib/actions/toplist.actions";
+import { getTopListData, type TopListDataResult } from "@/lib/actions/toplist.actions";
 import { formatWanAmount } from "@/lib/utils";
 
 interface TopListPanelProps {
@@ -28,8 +28,18 @@ export default function TopListPanel({
       setIsLoading(true);
       setError(null);
       try {
-        const data = await getTopListData(symbol, limit);
-        setTopList(data);
+        const result: TopListDataResult = await getTopListData(symbol, limit);
+
+        if (result.success) {
+          setTopList(result.data);
+          // 如果有数据但为空，不显示错误
+          if (result.data.length === 0) {
+            setError(null);
+          }
+        } else {
+          // 只有在 API 错误时才显示错误信息
+          setError(result.error || "Failed to load top list data");
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load top list data");
       } finally {
@@ -44,8 +54,16 @@ export default function TopListPanel({
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getTopListData(symbol, limit);
-      setTopList(data);
+      const result: TopListDataResult = await getTopListData(symbol, limit);
+
+      if (result.success) {
+        setTopList(result.data);
+        if (result.data.length === 0) {
+          setError(null);
+        }
+      } else {
+        setError(result.error || "Failed to load top list data");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load top list data");
     } finally {
