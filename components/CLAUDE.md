@@ -33,7 +33,9 @@ components/
 │   ├── TradingViewWatchlist.tsx # TradingView 观察列表
 │   ├── WatchlistManager.tsx    # 观察列表管理器
 │   ├── WatchlistStockChip.tsx  # 股票标签芯片
-│   └── WatchlistTable.tsx      # 观察列表表格
+│   ├── WatchlistTable.tsx      # 观察列表表格
+│   ├── TopListPanel.tsx        # 龙虎榜面板
+│   └── MoneyFlowCard.tsx       # 资金流向卡片
 ├── DonatePopup.tsx        # 捐赠弹窗
 ├── Footer.tsx             # 页脚
 ├── Header.tsx             # 页头导航
@@ -158,6 +160,25 @@ import { Dialog } from "@/components/ui/dialog";
   - 支持排序和筛选
   - 实时价格更新
   - 可跳转到股票详情页
+
+### TopListPanel
+- **功能**: 展示龙虎榜数据
+- **特性**:
+  - 显示龙虎榜 TOP10 或指定股票的上榜记录
+  - 显示买入/卖出/净买入金额
+  - 支持刷新数据
+  - 实时更新数据状态
+  - 响应式布局
+
+### MoneyFlowCard
+- **功能**: 展示股票资金流向信息
+- **特性**:
+  - 显示主力资金流入/流出（红涨绿跌）
+  - 大单交易情况展示（超大单、大单、中单、散户）
+  - 5日趋势图可视化（条形图）
+  - 支持刷新数据
+  - 响应式设计
+  - 错误处理和加载状态
 
 ## 品牌与营销组件
 
