@@ -157,21 +157,42 @@ export const getFormattedTodayDate = () => new Date().toLocaleDateString('en-US'
 export function formatSymbolForTradingView(symbol: string): string {
     if (!symbol) return '';
     const upperSymbol = symbol.toUpperCase();
-    
+
     // Shanghai
     if (upperSymbol.endsWith('.SS')) {
         return `SSE:${upperSymbol.slice(0, -3)}`;
     }
-    
+
     // Shenzhen
     if (upperSymbol.endsWith('.SZ')) {
         return `SZSE:${upperSymbol.slice(0, -3)}`;
     }
-    
+
     // Hong Kong
     if (upperSymbol.endsWith('.HK')) {
         return `HKEX:${upperSymbol.slice(0, -3)}`;
     }
-    
+
     return upperSymbol;
+}
+
+/**
+ * 格式化龙虎榜金额（万元）
+ * 将数字格式化为易读的金额格式
+ *
+ * @param amount - 金额（万元）
+ * @returns 格式化后的金额字符串
+ *
+ * @example
+ * formatWanAmount(12345) // "1.23万"
+ * formatWanAmount(123456) // "12.35万"
+ * formatWanAmount(1234567) // "123.46万"
+ * formatWanAmount(12345678) // "1234.57万"
+ */
+export function formatWanAmount(amount: number): string {
+    if (amount === 0) return '0';
+    if (Math.abs(amount) < 10000) {
+        return amount.toFixed(2);
+    }
+    return (amount / 10000).toFixed(2) + '万';
 }

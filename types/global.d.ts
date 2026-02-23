@@ -215,6 +215,23 @@ declare global {
         threshold: number;
         changePercent?: number;
     };
+
+    type TopListItem = {
+        tsCode: string;
+        name: string;
+        reason: string;
+        buyAmount: number;
+        sellAmount: number;
+        netAmount: number;
+        tradeDate: string;
+    };
+
+    type TopListPanelProps = {
+        symbol?: string;
+        limit?: number;
+        showReason?: boolean;
+        className?: string;
+    };
 }
 
 export {};
