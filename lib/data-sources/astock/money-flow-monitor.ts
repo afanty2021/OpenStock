@@ -81,7 +81,7 @@ export interface MoneyFlowTrendAnalysis {
  * 提供以下功能：
  * - 获取个股资金流向
  * - 获取资金流向趋势（N日）
- * - 实时监控大单（模拟）
+ * - 实时监控大单（模拟数据）
  *
  * @example
  * ```ts
@@ -108,6 +108,43 @@ export class MoneyFlowMonitor {
    * 单笔成交金额 >= 20万元 视为大单
    */
   private static readonly LARGE_ORDER_THRESHOLD = 20;
+
+  /**
+   * 趋势判断阈值（连续天数）
+   *
+   * 连续 N 天净流入/流出才判断为趋势
+   */
+  private static readonly TREND_THRESHOLD_DAYS = 3;
+
+  /**
+   * 趋势查询最大迭代倍数
+   *
+   * 最多尝试 N 倍的天数来查找交易日
+   */
+  private static readonly MAX_ITERATION_MULTIPLIER = 10;
+
+  /**
+   * 估算总成交额（万元）
+   *
+   * 注意：这是一个固定估算值，用于计算主力净流入占比。
+   * 未来应从 Tushare daily 接口获取实际成交额。
+   * @see https://github.com/your-org/OpenStock/issues/XXX
+   */
+  private static readonly ESTIMATED_TOTAL_AMOUNT = 10000;
+
+  /**
+   * 大单模拟记录最大数量
+   *
+   * 避免生成过多模拟数据
+   */
+  private static readonly MAX_SIMULATED_ORDERS = 50;
+
+  /**
+   * 平均每笔大单成交量（手）
+   *
+   * 用于模拟大单记录生成
+   */
+  private static readonly AVG_VOLUME_PER_ORDER = 100;
 
   /**
    * 构造函数
@@ -143,7 +180,9 @@ export class MoneyFlowMonitor {
     // 使用 TradingAwareScheduler 检查是否应该发起请求
     if (!TradingAwareScheduler.shouldRequest()) {
       // 非交易时段抛出错误（实际应该使用缓存数据）
-      // TODO: 实现 L1 缓存集成
+      // TODO: [P1 - High] 实现 L1 缓存集成
+      // 集成 lib/data-sources/cache.ts 的内存缓存层
+      // 在非交易时段返回缓存数据而非抛出错误
       throw new Error('Market is closed. Data not available in off-hours.');
     }
 
@@ -182,7 +221,13 @@ export class MoneyFlowMonitor {
    *
    * @param symbol - 股票代码（如 600519.SH 或 600519）
    * @param days - 交易天数
-   * @returns 资金流向趋势分析结果
+   * @returns 资金流向趋势分析结果（包含数据列表、统计信息和趋势方向）
+   * @returns {MoneyFlowData[]} returns.data - 资金流向数据列表
+   * @returns {number} returns.avgMainInflow - 平均主力净流入(万元)
+   * @returns {number} returns.totalMainInflow - 主力净流入总额(万元)
+   * @returns {number} returns.consecutiveInflowDays - 连续净流入天数
+   * @returns {number} returns.consecutiveOutflowDays - 连续净流出天数
+   * @returns {'bullish'|'bearish'|'neutral'} returns.trend - 趋势方向
    *
    * @example
    * ```ts
@@ -191,6 +236,7 @@ export class MoneyFlowMonitor {
    * // 获取最近 5 个交易日资金流向趋势
    * const trend = await monitor.getMoneyFlowTrend('600519.SH', 5);
    * console.log(trend.trend); // 'bullish' | 'bearish' | 'neutral'
+   * console.log(trend.avgMainInflow); // 平均主力净流入
    * ```
    */
   async getMoneyFlowTrend(
@@ -204,11 +250,11 @@ export class MoneyFlowMonitor {
     const allData: MoneyFlowData[] = [];
     let currentDate = new Date();
     let collectedDays = 0;
-    const MAX_ITERATIONS = days * 10; // 最多尝试 10 倍的天数
+    const maxIterations = days * MoneyFlowMonitor.MAX_ITERATION_MULTIPLIER;
     let iterations = 0;
 
     // 向前查找交易日
-    while (collectedDays < days && iterations < MAX_ITERATIONS) {
+    while (collectedDays < days && iterations < maxIterations) {
       iterations++;
 
       // 检查是否为交易日
@@ -259,19 +305,26 @@ export class MoneyFlowMonitor {
   }
 
   /**
-   * 实时监控大单（模拟）
+   * 实时监控大单（模拟数据）
+   *
+   * ⚠️ 重要说明：此方法返回的是模拟数据，非真实大单成交记录！
    *
    * 由于 Tushare 不提供实时逐笔成交数据，此方法基于历史资金流向数据
-   * 模拟生成大单交易记录
+   * 模拟生成大单交易记录。模拟数据仅供演示参考，不应用于实际交易决策。
+   *
+   * 模拟逻辑：
+   * - 基于当日大单净买入量生成订单数量
+   * - 时间随机分布在交易时段（9:30-15:00）
+   * - 方向由大单净流入方向决定
    *
    * @param symbol - 股票代码（如 600519.SH 或 600519）
-   * @returns 大单交易数组
+   * @returns 大单交易数组（模拟数据）
    *
    * @example
    * ```ts
    * const monitor = new MoneyFlowMonitor(tushare);
    *
-   * // 监控大单交易
+   * // 监控大单交易（注意：返回模拟数据）
    * const orders = await monitor.monitorLargeOrders('600519.SH');
    * orders.forEach(order => {
    *   console.log(`${order.time}: ${order.direction} ${order.volume}手`);
@@ -296,10 +349,10 @@ export class MoneyFlowMonitor {
 
     if (largeNetVolume > 0) {
       // 计算平均每笔大单的成交量
-      const avgVolumePerOrder = 100; // 假设平均每笔 100 手
+      const avgVolumePerOrder = MoneyFlowMonitor.AVG_VOLUME_PER_ORDER;
       const orderCount = Math.min(
         Math.floor(largeNetVolume * 10000 / avgVolumePerOrder),
-        50 // 最多生成 50 笔记录
+        MoneyFlowMonitor.MAX_SIMULATED_ORDERS
       );
 
       // 生成模拟大单记录
@@ -380,9 +433,9 @@ export class MoneyFlowMonitor {
 
     // 判断趋势方向
     let trend: 'bullish' | 'bearish' | 'neutral';
-    if (consecutiveInflowDays >= 3 && totalMainInflow > 0) {
+    if (consecutiveInflowDays >= MoneyFlowMonitor.TREND_THRESHOLD_DAYS && totalMainInflow > 0) {
       trend = 'bullish';
-    } else if (consecutiveOutflowDays >= 3 && totalMainInflow < 0) {
+    } else if (consecutiveOutflowDays >= MoneyFlowMonitor.TREND_THRESHOLD_DAYS && totalMainInflow < 0) {
       trend = 'bearish';
     } else {
       trend = 'neutral';
@@ -421,8 +474,8 @@ export class MoneyFlowMonitor {
     const retailInflow = -(data.net_buy_lg_amount || 0);
 
     // 计算主力净流入占比
-    // 假设当日成交额为 10000 万元（实际应从 daily 接口获取）
-    const estimatedTotalAmount = 10000;
+    // 使用估算的总成交额（未来应从 Tushare daily 接口获取实际成交额）
+    const estimatedTotalAmount = MoneyFlowMonitor.ESTIMATED_TOTAL_AMOUNT;
     const mainInflowRate =
       estimatedTotalAmount > 0 ? (netMainInflow / estimatedTotalAmount) * 100 : 0;
 
