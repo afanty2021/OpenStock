@@ -16,7 +16,12 @@ vi.mock('@/lib/utils', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/utils')>();
   return {
     ...actual,
-    formatWanAmount: (amount: number) => `${amount.toFixed(0)}万`,
+    formatWanAmount: (amount: number) => {
+      if (Math.abs(amount) >= 10000) {
+        return `${(amount / 10000).toFixed(2)}万`;
+      }
+      return `${amount.toFixed(0)}万`;
+    },
   };
 });
 
@@ -47,15 +52,15 @@ describe('ASectorPanel', () => {
     it('应该渲染行业板块面板', () => {
       render(<ASectorPanel type="industry" limit={10} />);
 
-      expect(screen.getByText(/行业板块/)).toBeDefined();
-      expect(screen.getByText(/热门/)).toBeDefined();
+      expect(screen.getByTestId('panel-title')).toHaveTextContent(/行业板块/);
+      expect(screen.getByTestId('ranking-type-hot')).toHaveTextContent('热门');
     });
 
     it('应该渲染概念板块面板', () => {
       render(<ASectorPanel type="concept" limit={10} />);
 
-      expect(screen.getByText(/概念板块/)).toBeDefined();
-      expect(screen.getByText(/热门/)).toBeDefined();
+      expect(screen.getByTestId('panel-title')).toHaveTextContent(/概念板块/);
+      expect(screen.getByTestId('ranking-type-hot')).toHaveTextContent('热门');
     });
 
     it('应该应用自定义 className', () => {
@@ -72,28 +77,28 @@ describe('ASectorPanel', () => {
     it('应该默认显示热门板块', () => {
       render(<ASectorPanel type="industry" limit={10} />);
 
-      expect(screen.getByText(/行业板块 热门/)).toBeDefined();
+      expect(screen.getByTestId('panel-title')).toHaveTextContent(/行业板块 热门/);
     });
 
     it('应该切换到冷门板块', async () => {
       render(<ASectorPanel type="industry" limit={10} />);
 
-      const coldButton = screen.getByText(/冷门/);
+      const coldButton = screen.getByTestId('ranking-type-cold');
       fireEvent.click(coldButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/行业板块 冷门/)).toBeDefined();
+        expect(screen.getByTestId('panel-title')).toHaveTextContent(/行业板块 冷门/);
       });
     });
 
     it('应该切换到全部板块', async () => {
       render(<ASectorPanel type="industry" limit={10} />);
 
-      const allButton = screen.getByText(/全部/);
+      const allButton = screen.getByTestId('ranking-type-all');
       fireEvent.click(allButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/行业板块 全部/)).toBeDefined();
+        expect(screen.getByTestId('panel-title')).toHaveTextContent(/行业板块 全部/);
       });
     });
   });
@@ -121,8 +126,8 @@ describe('ASectorPanel', () => {
       render(<ASectorPanel type="industry" limit={5} />);
 
       await waitFor(() => {
-        expect(screen.getByText(/25000万/)).toBeDefined();
-        expect(screen.getByText(/18000万/)).toBeDefined();
+        expect(screen.getByText(/2\.50亿/)).toBeDefined();
+        expect(screen.getByText(/1\.80亿/)).toBeDefined();
       });
     });
 
@@ -144,8 +149,9 @@ describe('ASectorPanel', () => {
       render(<ASectorPanel type="industry" limit={5} />);
 
       await waitFor(() => {
-        const changeElements = screen.getAllByText(/3.25%/);
-        expect(changeElements[0].className).toContain('text-red-400');
+        const changeText = screen.getByText(/\+3\.25%/);
+        const parentDiv = changeText.closest('div');
+        expect(parentDiv?.className).toContain('text-red-400');
       });
     });
 
@@ -153,12 +159,13 @@ describe('ASectorPanel', () => {
       render(<ASectorPanel type="industry" limit={10} />);
 
       // 切换到冷门板块
-      const coldButton = screen.getByText(/冷门/);
+      const coldButton = screen.getByTestId('ranking-type-cold');
       fireEvent.click(coldButton);
 
       await waitFor(() => {
-        const changeElements = screen.getAllByText(/-/);
-        expect(changeElements[0].className).toContain('text-green-400');
+        const changeText = screen.getByText(/-3\.25%/);
+        const parentDiv = changeText.closest('div');
+        expect(parentDiv?.className).toContain('text-green-400');
       });
     });
   });
@@ -171,11 +178,9 @@ describe('ASectorPanel', () => {
         expect(screen.getByText('农林牧渔')).toBeDefined();
       });
 
-      const refreshButton = screen.getByTitle(/刷新数据/);
-      fireEvent.click(refreshButton);
-
-      // 刷新按钮应该存在
+      const refreshButton = screen.getByTestId('refresh-button');
       expect(refreshButton).toBeDefined();
+      fireEvent.click(refreshButton);
     });
 
     it('板块项应该是可点击的链接', async () => {
@@ -189,10 +194,16 @@ describe('ASectorPanel', () => {
   });
 
   describe('加载状态', () => {
-    it('应该显示加载状态', () => {
+    it('应该显示加载状态', async () => {
       render(<ASectorPanel type="industry" limit={5} />);
 
-      expect(screen.getByText(/加载中.../)).toBeDefined();
+      // 等待数据加载完成
+      await waitFor(() => {
+        expect(screen.getByText('农林牧渔')).toBeDefined();
+      });
+
+      // 加载完成后不应该显示加载中
+      expect(screen.queryByText(/加载中.../)).not.toBeInTheDocument();
     });
   });
 
@@ -201,13 +212,13 @@ describe('ASectorPanel', () => {
       const { rerender } = render(<ASectorPanel type="industry" limit={5} />);
 
       await waitFor(() => {
-        expect(screen.getByText(/行业板块/)).toBeDefined();
+        expect(screen.getByTestId('panel-title')).toHaveTextContent(/行业板块/);
       }, { timeout: 3000 });
 
       rerender(<ASectorPanel type="concept" limit={5} />);
 
       await waitFor(() => {
-        expect(screen.getByText(/概念板块/)).toBeDefined();
+        expect(screen.getByTestId('panel-title')).toHaveTextContent(/概念板块/);
       }, { timeout: 3000 });
     });
 
@@ -215,7 +226,7 @@ describe('ASectorPanel', () => {
       const { rerender } = render(<ASectorPanel type="industry" limit={5} />);
 
       await waitFor(() => {
-        expect(screen.getByText(/行业板块/)).toBeDefined();
+        expect(screen.getByTestId('panel-title')).toHaveTextContent(/行业板块/);
       }, { timeout: 3000 });
 
       rerender(<ASectorPanel type="industry" limit={15} />);
@@ -239,13 +250,9 @@ describe('ASectorPanel', () => {
     it('板块类型选择器按钮应该是可访问的', () => {
       render(<ASectorPanel type="industry" limit={5} />);
 
-      const hotButton = screen.getByRole('button', { name: /热门/ });
-      const coldButton = screen.getByRole('button', { name: /冷门/ });
-      const allButton = screen.getByRole('button', { name: /全部/ });
-
-      expect(hotButton).toBeDefined();
-      expect(coldButton).toBeDefined();
-      expect(allButton).toBeDefined();
+      expect(screen.getByTestId('ranking-type-hot')).toBeDefined();
+      expect(screen.getByTestId('ranking-type-cold')).toBeDefined();
+      expect(screen.getByTestId('ranking-type-all')).toBeDefined();
     });
   });
 

@@ -21,8 +21,7 @@ import {
   Minus,
   Filter,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { formatWanAmount } from '@/lib/utils';
+import { cn, formatWanAmount } from '@/lib/utils';
 import { SectorTracker, type SectorRankingItem, type SectorType } from '@/lib/data-sources/astock/sector-tracker';
 import { TradingCalendar } from '@/lib/data-sources/astock/trading-calendar';
 
@@ -48,13 +47,21 @@ export interface ASectorPanelProps {
 type RankingType = 'hot' | 'cold' | 'all';
 
 /**
+ * 常量定义
+ */
+const PROGRESS_BAR_MULTIPLIER = 5; // 进度条宽度计算乘数
+const MAX_LIMIT = 100; // 最大返回条数
+const MIN_LIMIT = 1; // 最小返回条数
+
+/**
  * 格式化金额为万元
+ * 使用 formatWanAmount 的基础上添加 "亿" 单位支持
  */
 function formatAmount(amount: number): string {
   if (Math.abs(amount) >= 10000) {
     return `${(amount / 10000).toFixed(2)}亿`;
   }
-  return `${amount.toFixed(0)}万`;
+  return formatWanAmount(amount);
 }
 
 /**
@@ -152,7 +159,7 @@ function SectorRankItem({ item, index, showMoneyFlow }: SectorRankItemProps) {
           <div className="w-full bg-gray-700/50 rounded-full h-1.5 overflow-hidden">
             <div
               className={cn('h-full transition-all duration-300', isPositive ? 'bg-red-400' : 'bg-green-400')}
-              style={{ width: `${Math.min(Math.abs(item.pctChg) * 5, 100)}%` }}
+              style={{ width: `${Math.min(Math.abs(item.pctChg) * PROGRESS_BAR_MULTIPLIER, 100)}%` }}
             />
           </div>
         </div>
@@ -177,7 +184,7 @@ function SectorTypeSelector({ currentType, onTypeChange }: SectorTypeSelectorPro
   ];
 
   return (
-    <div className="inline-flex items-center space-x-1 bg-gray-800/50 rounded-lg p-1">
+    <div className="inline-flex items-center space-x-1 bg-gray-800/50 rounded-lg p-1" data-testid="ranking-selector">
       {types.map((type) => (
         <button
           key={type.value}
@@ -188,6 +195,7 @@ function SectorTypeSelector({ currentType, onTypeChange }: SectorTypeSelectorPro
               ? 'bg-yellow-500/20 text-yellow-500'
               : 'text-gray-400 hover:text-white hover:bg-white/5'
           )}
+          data-testid={`ranking-type-${type.value}`}
         >
           {type.icon}
           <span>{type.label}</span>
@@ -222,6 +230,9 @@ function ASectorPanelComponent({
   showHeatmap = false,
   className = '',
 }: ASectorPanelProps) {
+  // 验证 limit prop
+  const validatedLimit = Math.max(MIN_LIMIT, Math.min(MAX_LIMIT, limit));
+
   const [sectors, setSectors] = useState<SectorRankingItem[]>([]);
   const [rankingType, setRankingType] = useState<RankingType>('hot');
   const [isLoading, setIsLoading] = useState(true);
@@ -248,21 +259,21 @@ function ASectorPanelComponent({
         // 获取热门板块（涨幅榜）
         result = {
           success: true,
-          data: generateMockSectorData(type, limit, 'hot'),
+          data: generateMockSectorData(type, validatedLimit, 'hot'),
           tradeDate: new Date().toISOString().split('T')[0],
         };
       } else if (rankingType === 'cold') {
         // 获取冷门板块（跌幅榜）
         result = {
           success: true,
-          data: generateMockSectorData(type, limit, 'cold'),
+          data: generateMockSectorData(type, validatedLimit, 'cold'),
           tradeDate: new Date().toISOString().split('T')[0],
         };
       } else {
         // 获取全部板块
         result = {
           success: true,
-          data: generateMockSectorData(type, limit, 'all'),
+          data: generateMockSectorData(type, validatedLimit, 'all'),
           tradeDate: new Date().toISOString().split('T')[0],
         };
       }
@@ -278,7 +289,7 @@ function ASectorPanelComponent({
     } finally {
       setIsLoading(false);
     }
-  }, [type, limit, rankingType]);
+  }, [type, validatedLimit, rankingType]);
 
   // 初始加载和依赖变化时获取数据
   useEffect(() => {
@@ -300,11 +311,11 @@ function ASectorPanelComponent({
   };
 
   return (
-    <div className={cn('bg-gray-900/30 rounded-lg border border-gray-800 p-4', className)}>
+    <div className={cn('bg-gray-900/30 rounded-lg border border-gray-800 p-4', className)} data-testid="sector-panel">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-3">
-          <h2 className="text-lg font-semibold text-white flex items-center">
+          <h2 className="text-lg font-semibold text-white flex items-center" data-testid="panel-title">
             <Layers className="w-5 h-5 mr-2 text-purple-500" />
             {getPanelTitle()}
           </h2>
@@ -329,6 +340,7 @@ function ASectorPanelComponent({
             className="text-gray-400 hover:text-white transition-colors p-1 rounded hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
             title={isLoading ? '加载中...' : '刷新数据'}
             aria-label={isLoading ? '正在加载' : '刷新数据'}
+            data-testid="refresh-button"
           >
             <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
           </button>
