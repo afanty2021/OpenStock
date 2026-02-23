@@ -110,5 +110,12 @@ export {
   type BacktestEngineConfig,
 } from './backtest-engine';
 
+// 导出策略管理器
+export {
+  StrategyManager,
+  getStrategyManager,
+  type StrategyManagerConfig,
+} from './strategy-manager';
+
 // 导出类型定义（备用）
 export * from './types';
