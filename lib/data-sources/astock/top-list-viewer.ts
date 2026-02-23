@@ -29,6 +29,8 @@ export interface TopListItem {
   netAmount: number;
   /** 排名（按净买入金额排序） */
   rank: number;
+  /** 交易日期 YYYY-MM-DD */
+  tradeDate: string;
 }
 
 
@@ -84,15 +86,17 @@ export class TopListViewer {
   async getTodayTopList(): Promise<TopListItem[]> {
     // 使用 TradingAwareScheduler 检查是否应该发起请求
     if (!TradingAwareScheduler.shouldRequest()) {
-      // 在非交易时段，可以返回缓存数据或空数组
+      // 非交易时段返回空数组（实际应该使用缓存数据）
+      // TODO: 实现 L1 缓存集成
       return [];
     }
 
     // 获取当日龙虎榜数据
     const data = await this.tushare.getTopList();
 
-    // 转换为标准格式并排序
-    return this.transformAndFormat(data);
+    // 转换为标准格式并排序，添加当前日期
+    const today = this.formatDisplayDate(new Date());
+    return this.transformAndFormat(data, today);
   }
 
   /**
@@ -117,11 +121,16 @@ export class TopListViewer {
     }
 
     const allData: TopListData[] = [];
+    const tradeDates: string[] = []; // 记录每条数据对应的交易日期
     let currentDate = new Date();
     let collectedDays = 0;
+    const MAX_ITERATIONS = days * 10; // 最多尝试 10 倍的天数
+    let iterations = 0;
 
     // 向前查找交易日
-    while (collectedDays < days) {
+    while (collectedDays < days && iterations < MAX_ITERATIONS) {
+      iterations++;
+
       // 检查是否为交易日
       if (!TradingCalendar.isTradingDay(currentDate)) {
         // 前移一天
@@ -141,10 +150,16 @@ export class TopListViewer {
         // 获取该日龙虎榜数据
         const dailyData = await this.tushare.getTopList({ tradeDate });
         allData.push(...dailyData);
+
+        // 记录每条数据的交易日期
+        for (const _ of dailyData) {
+          tradeDates.push(this.formatDisplayDate(currentDate));
+        }
+
         collectedDays++;
       } catch (error) {
-        // 如果某日无数据，跳过该日
-        // 可能是无龙虎榜数据或 API 错误
+        // 记录错误但继续处理其他日期
+        console.warn(`Failed to fetch top list for ${tradeDate}:`, error);
       }
 
       // 前移一天
@@ -152,7 +167,7 @@ export class TopListViewer {
     }
 
     // 转换为标准格式并排序
-    return this.transformAndFormat(allData);
+    return this.transformAndFormatWithDates(allData, tradeDates);
   }
 
   /**
@@ -181,11 +196,16 @@ export class TopListViewer {
     }
 
     const allData: TopListData[] = [];
+    const tradeDates: string[] = []; // 记录每条数据对应的交易日期
     let currentDate = new Date();
     let collectedDays = 0;
+    const MAX_ITERATIONS = days * 10; // 最多尝试 10 倍的天数
+    let iterations = 0;
 
     // 向前查找交易日
-    while (collectedDays < days) {
+    while (collectedDays < days && iterations < MAX_ITERATIONS) {
+      iterations++;
+
       // 检查是否为交易日
       if (!TradingCalendar.isTradingDay(currentDate)) {
         // 前移一天
@@ -210,10 +230,17 @@ export class TopListViewer {
 
         if (dailyData.length > 0) {
           allData.push(...dailyData);
+
+          // 记录每条数据的交易日期
+          for (const _ of dailyData) {
+            tradeDates.push(this.formatDisplayDate(currentDate));
+          }
+
           collectedDays++;
         }
       } catch (error) {
-        // 如果某日无数据，跳过该日
+        // 记录错误但继续处理其他日期
+        console.warn(`Failed to fetch top list for ${symbol} on ${tradeDate}:`, error);
       }
 
       // 前移一天
@@ -221,7 +248,7 @@ export class TopListViewer {
     }
 
     // 转换为标准格式并排序
-    return this.transformAndFormat(allData);
+    return this.transformAndFormatWithDates(allData, tradeDates);
   }
 
   /**
@@ -230,10 +257,11 @@ export class TopListViewer {
    * 按净买入金额降序排序
    *
    * @param data - 原始龙虎榜数据
+   * @param tradeDate - 交易日期 (YYYY-MM-DD 格式)
    * @returns 排序后的龙虎榜列表项
    * @private
    */
-  private transformAndFormat(data: TopListData[]): TopListItem[] {
+  private transformAndFormat(data: TopListData[], tradeDate: string): TopListItem[] {
     // 转换为标准格式
     const items: TopListItem[] = data.map((item) => ({
       tsCode: item.ts_code,
@@ -243,6 +271,44 @@ export class TopListViewer {
       sellAmount: item.sell_amount || 0,
       netAmount: item.net_amount || 0,
       rank: 0, // 稍后计算
+      tradeDate,
+    }));
+
+    // 按净买入金额降序排序
+    items.sort((a, b) => b.netAmount - a.netAmount);
+
+    // 计算排名
+    items.forEach((item, index) => {
+      item.rank = index + 1;
+    });
+
+    return items;
+  }
+
+  /**
+   * 转换数据格式并排序（带交易日期数组）
+   *
+   * 按净买入金额降序排序，每条数据关联对应的交易日期
+   *
+   * @param data - 原始龙虎榜数据
+   * @param tradeDates - 交易日期数组 (YYYY-MM-DD 格式)
+   * @returns 排序后的龙虎榜列表项
+   * @private
+   */
+  private transformAndFormatWithDates(
+    data: TopListData[],
+    tradeDates: string[]
+  ): TopListItem[] {
+    // 转换为标准格式
+    const items: TopListItem[] = data.map((item, index) => ({
+      tsCode: item.ts_code,
+      name: item.name,
+      reason: item.reason,
+      buyAmount: item.buy_amount || 0,
+      sellAmount: item.sell_amount || 0,
+      netAmount: item.net_amount || 0,
+      rank: 0, // 稍后计算
+      tradeDate: tradeDates[index] || '',
     }));
 
     // 按净买入金额降序排序
@@ -268,5 +334,19 @@ export class TopListViewer {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}${month}${day}`;
+  }
+
+  /**
+   * 格式化交易日期为显示格式 (YYYY-MM-DD)
+   *
+   * @param date - 日期对象
+   * @returns 显示格式的日期字符串
+   * @private
+   */
+  private formatDisplayDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 }
