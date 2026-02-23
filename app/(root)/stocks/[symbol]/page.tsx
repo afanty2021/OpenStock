@@ -1,5 +1,6 @@
 import TradingViewWidget from "@/components/TradingViewWidget";
 import WatchlistButton from "@/components/WatchlistButton";
+import TopListPanel from "@/components/watchlist/TopListPanel";
 import {
     SYMBOL_INFO_WIDGET_CONFIG,
     CANDLE_CHART_WIDGET_CONFIG,
@@ -13,11 +14,15 @@ import { auth } from '@/lib/better-auth/auth';
 import { headers } from 'next/headers';
 import { isStockInWatchlist } from '@/lib/actions/watchlist.actions';
 import { formatSymbolForTradingView } from '@/lib/utils';
+import { AStockCodeUtil } from '@/lib/data-sources/astock';
 
 export default async function StockDetails({ params }: StockDetailsPageProps) {
     const { symbol } = await params;
     const tvSymbol = formatSymbolForTradingView(symbol);
     const scriptUrl = `https://s3.tradingview.com/external-embedding/embed-widget-`;
+
+    // 判断是否为 A 股
+    const isAStock = AStockCodeUtil.isAStock(symbol);
 
     const session = await auth.api.getSession({
         headers: await headers()
@@ -81,6 +86,11 @@ export default async function StockDetails({ params }: StockDetailsPageProps) {
                         config={COMPANY_FINANCIALS_WIDGET_CONFIG(tvSymbol)}
                         height={800}
                     />
+
+                    {/* 龙虎榜信息 - 仅 A 股显示 */}
+                    {isAStock && (
+                        <TopListPanel symbol={symbol} limit={10} showReason={true} />
+                    )}
                 </div>
             </section>
         </div>
