@@ -82,5 +82,15 @@ export {
   type SavedStrategy,
 } from './ai-news-analyzer';
 
+// 导出财报智能解读器
+export {
+  FinancialReportReader,
+  getFinancialReportReader,
+  type FinancialReport,
+  type FinancialMetrics,
+  type FinancialAnalysis,
+  type FinancialReportReaderConfig,
+} from './financial-report-reader';
+
 // 导出类型定义（备用）
 export * from './types';
