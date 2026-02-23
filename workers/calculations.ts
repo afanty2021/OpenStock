@@ -348,11 +348,33 @@ self.addEventListener('message', (event: MessageEvent) => {
       result,
     });
   } catch (error) {
+    // 增强错误信息，包含堆栈和部分 payload 上下文
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
+    // 创建安全的 payload 快照（仅包含类型和基本信息，避免循环引用）
+    const payloadSnapshot = payload ? {
+      type: typeof payload,
+      ...(Array.isArray(payload) ? { arrayLength: payload.length } : {}),
+      ...((typeof payload === 'object' && payload !== null && !Array.isArray(payload))
+        ? Object.keys(payload).reduce((acc, key) => {
+            // 仅包含基本类型的值，避免复杂嵌套
+            const value = (payload as Record<string, unknown>)[key];
+            if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+              acc[key] = value;
+            }
+            return acc;
+          }, {} as Record<string, unknown>)
+        : {})
+    } : undefined;
+
     self.postMessage({
       id,
       type,
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage,
+      stack: errorStack,
+      payloadSnapshot,
     });
   }
 });

@@ -213,3 +213,195 @@ export function getTopListCacheExpiresAt(tradeDate: string): number {
   nextOpen.setHours(9, 30, 0, 0);
   return nextOpen.getTime();
 }
+
+/**
+ * 缓存条目接口
+ */
+interface CacheEntry<T> {
+  /** 缓存的数据 */
+  data: T;
+  /** 缓存时间戳（毫秒） */
+  cachedAt: number;
+  /** 缓存策略类型 */
+  strategyType: CacheStrategyType;
+}
+
+/**
+ * 简单的内存缓存管理器
+ *
+ * 提供基于内存的缓存实现，支持 TTL 和 stale-while-revalidate 策略
+ *
+ * @example
+ * ```ts
+ * const cacheManager = new CacheManager<StockData>();
+ *
+ * // 设置缓存（使用默认 quote 策略）
+ * await cacheManager.set('AAPL', stockData, 'quote');
+ *
+ * // 获取缓存
+ * const cached = await cacheManager.get('AAPL', 'quote');
+ *
+ * // 清除缓存
+ * await cacheManager.delete('AAPL');
+ *
+ * // 清空所有缓存
+ * await cacheManager.clear();
+ * ```
+ */
+export class CacheManager<T = unknown> {
+  /** 缓存存储 */
+  private cache: Map<string, CacheEntry<T>> = new Map();
+
+  /** 缓存键前缀 */
+  private prefix: string;
+
+  /**
+   * 构造函数
+   * @param prefix - 缓存键前缀，用于区分不同类型的缓存
+   */
+  constructor(prefix: string = 'cache') {
+    this.prefix = prefix;
+  }
+
+  /**
+   * 生成完整的缓存键
+   * @param key - 原始键
+   * @returns 完整的缓存键
+   */
+  private getFullKey(key: string): string {
+    return `${this.prefix}:${key}`;
+  }
+
+  /**
+   * 设置缓存
+   * @param key - 缓存键
+   * @param data - 要缓存的数据
+   * @param strategyType - 缓存策略类型
+   */
+  async set(key: string, data: T, strategyType: CacheStrategyType): Promise<void> {
+    const strategy = getCacheStrategy(strategyType);
+    if (!strategy.enabled) {
+      return; // 缓存未启用，直接返回
+    }
+
+    const entry: CacheEntry<T> = {
+      data,
+      cachedAt: Date.now(),
+      strategyType,
+    };
+
+    this.cache.set(this.getFullKey(key), entry);
+  }
+
+  /**
+   * 获取缓存
+   * @param key - 缓存键
+   * @param strategyType - 缓存策略类型
+   * @returns 缓存的数据，如果不存在或已过期则返回 null
+   */
+  async get(key: string, strategyType: CacheStrategyType): Promise<T | null> {
+    const entry = this.cache.get(this.getFullKey(key));
+
+    if (!entry) {
+      return null;
+    }
+
+    // 检查缓存是否过期
+    if (isCacheExpired(entry.strategyType, entry.cachedAt)) {
+      this.cache.delete(this.getFullKey(key));
+      return null;
+    }
+
+    return entry.data;
+  }
+
+  /**
+   * 获取缓存并检查是否需要后台重新验证
+   * @param key - 缓存键
+   * @param strategyType - 缓存策略类型
+   * @returns [缓存的数据, 是否需要重新验证]
+   */
+  async getWithRevalidation(key: string, strategyType: CacheStrategyType): Promise<{
+    data: T | null;
+    shouldRevalidate: boolean;
+  }> {
+    const entry = this.cache.get(this.getFullKey(key));
+
+    if (!entry) {
+      return { data: null, shouldRevalidate: false };
+    }
+
+    // 检查是否过期
+    const isExpired = isCacheExpired(entry.strategyType, entry.cachedAt);
+    if (isExpired) {
+      this.cache.delete(this.getFullKey(key));
+      return { data: null, shouldRevalidate: false };
+    }
+
+    // 检查是否需要后台重新验证
+    const shouldRevalidate = shouldStaleRevalidate(entry.strategyType, entry.cachedAt);
+
+    return {
+      data: entry.data,
+      shouldRevalidate,
+    };
+  }
+
+  /**
+   * 删除缓存
+   * @param key - 缓存键
+   */
+  async delete(key: string): Promise<void> {
+    this.cache.delete(this.getFullKey(key));
+  }
+
+  /**
+   * 清空所有缓存
+   */
+  async clear(): Promise<void> {
+    this.cache.clear();
+  }
+
+  /**
+   * 清理过期的缓存条目
+   * @returns 清理的条目数量
+   */
+  async cleanExpired(): Promise<number> {
+    let cleaned = 0;
+    for (const [key, entry] of this.cache.entries()) {
+      if (isCacheExpired(entry.strategyType, entry.cachedAt)) {
+        this.cache.delete(key);
+        cleaned++;
+      }
+    }
+    return cleaned;
+  }
+
+  /**
+   * 获取缓存统计信息
+   * @returns 缓存统计
+   */
+  getStats(): {
+    size: number;
+    keys: string[];
+  } {
+    return {
+      size: this.cache.size,
+      keys: Array.from(this.cache.keys()),
+    };
+  }
+
+  /**
+   * 检查缓存是否存在
+   * @param key - 缓存键
+   * @returns 是否存在
+   */
+  has(key: string): boolean {
+    return this.cache.has(this.getFullKey(key));
+  }
+}
+
+/**
+ * 创建默认的缓存管理器实例
+ */
+export const defaultCacheManager = new CacheManager();

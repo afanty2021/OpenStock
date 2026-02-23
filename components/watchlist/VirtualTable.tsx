@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 /**
@@ -288,6 +288,7 @@ export function DynamicVirtualTable<T>({
   showHeader = true,
 }: DynamicVirtualTableProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const resizeObserversRef = useRef<Map<number, ResizeObserver>>(new Map());
   const [measuredRowHeights, setMeasuredRowHeights] = useState<Map<number, number>>(new Map());
 
   // 测量行高
@@ -298,6 +299,16 @@ export function DynamicVirtualTable<T>({
       return next;
     });
   };
+
+  // 清理所有 ResizeObserver
+  useEffect(() => {
+    return () => {
+      resizeObserversRef.current.forEach((observer) => {
+        observer.disconnect();
+      });
+      resizeObserversRef.current.clear();
+    };
+  }, []);
 
   const rowVirtualizer = useVirtualizer({
     count: data.length,
@@ -348,13 +359,21 @@ export function DynamicVirtualTable<T>({
                 ref={(node) => {
                   if (node) {
                     rowVirtualizer.measureElement(node);
-                    // 额外记录测量结果用于动态调整
+
+                    // 清理该行之前的 ResizeObserver
+                    const existingObserver = resizeObserversRef.current.get(virtualRow.index);
+                    if (existingObserver) {
+                      existingObserver.disconnect();
+                    }
+
+                    // 创建新的 ResizeObserver
                     const resizeObserver = new ResizeObserver((entries) => {
                       for (const entry of entries) {
                         measureRow(virtualRow.index, entry.contentRect.height);
                       }
                     });
                     resizeObserver.observe(node);
+                    resizeObserversRef.current.set(virtualRow.index, resizeObserver);
                   }
                 }}
                 style={{

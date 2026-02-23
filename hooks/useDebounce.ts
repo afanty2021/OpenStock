@@ -139,6 +139,3 @@ export function useDebouncePending<T>(value: T, delay: number): [T, boolean] {
 
   return [debouncedValue, isPending];
 }
-
-// 向后兼容：保留原有的导出
-export { useDebounceCallback as useDebounce };

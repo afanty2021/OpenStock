@@ -30,6 +30,7 @@ export function useThrottle<T extends (...args: unknown[]) => void>(
   // 使用 0 初始化，确保第一次调用可以立即执行
   const lastRunRef = useRef<number>(0);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isFirstCallRef = useRef(true);
   const callbackRef = useRef(callback);
 
   // 保持 callback ref 最新
@@ -41,6 +42,14 @@ export function useThrottle<T extends (...args: unknown[]) => void>(
     (...args: Parameters<T>) => {
       const now = Date.now();
       const timeSinceLastRun = now - lastRunRef.current;
+
+      // 首次调用立即执行
+      if (isFirstCallRef.current) {
+        isFirstCallRef.current = false;
+        lastRunRef.current = now;
+        callbackRef.current(...args);
+        return;
+      }
 
       if (timeSinceLastRun >= delay) {
         // 可以执行
