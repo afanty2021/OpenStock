@@ -31,11 +31,23 @@ vi.mock('@/components/astock', () => ({
       {exchange} {status}
     </span>
   ),
-  CompactLimitPriceDisplay: ({ currentPrice, size }: any) => (
-    <span data-testid="limit-price-display" data-size={size}>
-      Limit: ¥{currentPrice}
-    </span>
-  ),
+  CompactLimitPriceDisplay: ({ currentPrice, size, count, symbol }: any) => {
+    // 模拟涨跌停价格计算
+    const getLimitPct = (sym: string) => {
+      if (sym.startsWith('688') || sym.startsWith('300') || sym.startsWith('301')) return 20;
+      if (sym.startsWith('8') || sym.startsWith('4')) return 30;
+      return 10;
+    };
+    const limitPct = getLimitPct(symbol || '600519.SH');
+    const limitUpPrice = currentPrice * (1 + limitPct / 100);
+    const limitDownPrice = currentPrice * (1 - limitPct / 100);
+
+    return (
+      <span data-testid="limit-price-display" data-size={size} data-count={count}>
+        ▲ ¥{limitUpPrice.toFixed(2)}{count === 2 && <span> ▼ ¥{limitDownPrice.toFixed(2)}</span>}
+      </span>
+    );
+  },
 }));
 
 // Mock actions
@@ -93,6 +105,14 @@ vi.mock('@/lib/data-sources/astock', () => ({
     isAStock: vi.fn((symbol: string) => symbol.includes('.SH') || symbol.includes('.SZ') || symbol.includes('.BJ')),
     extractCode: vi.fn((symbol: string) => symbol.split('.')[0]),
     getExchange: vi.fn((symbol: string) => symbol.split('.')[1] as 'SH' | 'SZ' | 'BJ'),
+    getLimitPct: vi.fn((symbol: string, name?: string) => {
+      // Mock 涨跌停限制计算
+      // 科创板/创业板 20%，北交所 30%，主板 10%，ST 股票 5%
+      if (name && (name.includes('ST') || name.includes('*ST'))) return 5;
+      if (symbol.startsWith('688') || symbol.startsWith('300') || symbol.startsWith('301')) return 20;
+      if (symbol.startsWith('8') || symbol.startsWith('4')) return 30;
+      return 10; // 默认主板
+    }),
   },
 }));
 

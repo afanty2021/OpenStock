@@ -207,12 +207,20 @@ export default function WatchlistTable({ data, userId, onRefresh, useAStockMode 
         return AStockCodeUtil.getExchange(symbol) as 'SH' | 'SZ' | 'BJ' || 'SH';
     };
 
-    // 判断涨跌停状态
+    // 判断涨跌停状态（使用正确的涨跌停阈值）
     const getLimitStatus = (stock: WatchlistStock): 'limit_up' | 'limit_down' | 'normal' => {
         if (stock.limitStatus) return stock.limitStatus;
+
+        // 获取该股票的涨跌停限制比例
+        const limitPct = AStockCodeUtil.getLimitPct(stock.symbol, stock.name);
+        if (limitPct === 0) return 'normal'; // 非 A 股或无限制
+
         const changePct = stock.changePercent;
-        if (changePct >= 9.9) return 'limit_up';
-        if (changePct <= -9.9) return 'limit_down';
+        // 使用 0.5% 容差判断涨跌停（与 LimitDetector 一致）
+        const tolerance = limitPct * 0.005;
+
+        if (changePct >= limitPct - tolerance) return 'limit_up';
+        if (changePct <= -limitPct + tolerance) return 'limit_down';
         return 'normal';
     };
 
@@ -305,19 +313,29 @@ export default function WatchlistTable({ data, userId, onRefresh, useAStockMode 
                                         {/* 涨停价 */}
                                         <td className="px-4 py-3">
                                             {stock.price > 0 && (
-                                                <span className="text-red-400 text-sm font-mono">
-                                                    ¥{(stock.price * 1.10).toFixed(2)}
-                                                </span>
+                                                <CompactLimitPriceDisplay
+                                                    currentPrice={stock.price}
+                                                    symbol={stock.symbol}
+                                                    stockName={stock.name}
+                                                    count={1}
+                                                    size="sm"
+                                                    className="text-red-400"
+                                                />
                                             )}
                                         </td>
 
                                         {/* 跌停价 */}
                                         <td className="px-4 py-3">
-                                            {stock.price > 0 && (
-                                                <span className="text-green-400 text-sm font-mono">
-                                                    ¥{(stock.price * 0.90).toFixed(2)}
-                                                </span>
-                                            )}
+                                            {stock.price > 0 && (() => {
+                                                // 计算跌停价（使用 getLimitPct 获取正确的涨跌停比例）
+                                                const limitPct = AStockCodeUtil.getLimitPct(stock.symbol, stock.name);
+                                                const limitDownPrice = stock.price * (1 - limitPct / 100);
+                                                return (
+                                                    <span className="text-green-400 text-sm font-mono">
+                                                        ¥{limitDownPrice.toFixed(2)}
+                                                    </span>
+                                                );
+                                            })()}
                                         </td>
 
                                         {/* 换手率 */}
