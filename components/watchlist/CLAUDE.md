@@ -8,5 +8,4 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #4586 | 8:22 AM | 🔵 | WatchlistTable component architecture documented | ~386 |
-| #4576 | 8:21 AM | 🔵 | Watchlist feature components catalogued | ~288 |
 </claude-mem-context>
