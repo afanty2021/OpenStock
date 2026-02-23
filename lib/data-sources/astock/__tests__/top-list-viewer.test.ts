@@ -93,34 +93,12 @@ describe('TopListViewer', () => {
       const result = await viewer.getTodayTopList();
 
       expect(result).toHaveLength(4);
-      expect(mockGetTopList).toHaveBeenCalledWith({ limit: undefined });
+      expect(mockGetTopList).toHaveBeenCalledWith();
 
       // 验证排序：净买入降序
       expect(result[0].tsCode).toBe('600519.SH');
       expect(result[0].netAmount).toBe(20000);
       expect(result[0].rank).toBe(1);
-    });
-
-    test('应支持自定义排序字段和顺序', async () => {
-      vi.mocked(TradingAwareScheduler.shouldRequest).mockReturnValue(true);
-      mockGetTopList.mockResolvedValue(mockTopListData);
-
-      const result = await viewer.getTodayTopList({
-        sortBy: 'buyAmount',
-        sortOrder: 'desc',
-      });
-
-      expect(result[0].tsCode).toBe('600519.SH');
-      expect(result[0].buyAmount).toBe(50000);
-    });
-
-    test('应支持限制返回条数', async () => {
-      vi.mocked(TradingAwareScheduler.shouldRequest).mockReturnValue(true);
-      mockGetTopList.mockResolvedValue(mockTopListData);
-
-      const result = await viewer.getTodayTopList({ limit: 2 });
-
-      expect(result).toHaveLength(2);
     });
 
     test('非交易时段应返回空数组', async () => {
@@ -177,15 +155,6 @@ describe('TopListViewer', () => {
       expect(mockGetTopList).toHaveBeenCalledTimes(3);
     });
 
-    test('应限制最大查询天数为30天', async () => {
-      vi.mocked(TradingCalendar.isTradingDay).mockReturnValue(true);
-      mockGetTopList.mockResolvedValue([mockTopListData[0]]);
-
-      await viewer.getHistoricalTopList(100);
-
-      expect(mockGetTopList).toHaveBeenCalledTimes(30);
-    });
-
     test('应跳过非交易日', async () => {
       vi.mocked(TradingCalendar.isTradingDay)
         .mockReturnValueOnce(false)
@@ -230,15 +199,6 @@ describe('TopListViewer', () => {
       const result = await viewer.getStockTopListHistory('600519.SH', 5);
 
       expect(result).toHaveLength(2);
-    });
-
-    test('应限制最大查询天数为365天', async () => {
-      vi.mocked(TradingCalendar.isTradingDay).mockReturnValue(true);
-      mockGetTopList.mockResolvedValue([mockTopListData[0]]);
-
-      await viewer.getStockTopListHistory('600519.SH', 400);
-
-      expect(mockGetTopList).toHaveBeenCalledTimes(365);
     });
 
     test('days <= 0 应抛出错误', async () => {

@@ -31,23 +31,6 @@ export interface TopListItem {
   rank: number;
 }
 
-/**
- * 排序选项
- */
-export type SortField = 'netAmount' | 'buyAmount' | 'sellAmount';
-export type SortOrder = 'asc' | 'desc';
-
-/**
- * 龙虎榜查询选项
- */
-export interface TopListOptions {
-  /** 排序字段 */
-  sortBy?: SortField;
-  /** 排序顺序 */
-  sortOrder?: SortOrder;
-  /** 返回条数限制 */
-  limit?: number;
-}
 
 /**
  * A 股龙虎榜查看器
@@ -88,7 +71,6 @@ export class TopListViewer {
    *
    * 返回当日龙虎榜数据，按净买入金额降序排序
    *
-   * @param options - 查询选项
    * @returns 龙虎榜列表项数组
    *
    * @example
@@ -97,18 +79,9 @@ export class TopListViewer {
    *
    * // 获取当日龙虎榜（默认按净买入降序）
    * const today = await viewer.getTodayTopList();
-   *
-   * // 获取当日龙虎榜 TOP20
-   * const top20 = await viewer.getTodayTopList({ limit: 20 });
-   *
-   * // 按买入金额排序
-   * const byBuy = await viewer.getTodayTopList({
-   *   sortBy: 'buyAmount',
-   *   sortOrder: 'desc'
-   * });
    * ```
    */
-  async getTodayTopList(options: TopListOptions = {}): Promise<TopListItem[]> {
+  async getTodayTopList(): Promise<TopListItem[]> {
     // 使用 TradingAwareScheduler 检查是否应该发起请求
     if (!TradingAwareScheduler.shouldRequest()) {
       // 在非交易时段，可以返回缓存数据或空数组
@@ -116,12 +89,10 @@ export class TopListViewer {
     }
 
     // 获取当日龙虎榜数据
-    const data = await this.tushare.getTopList({
-      limit: options.limit,
-    });
+    const data = await this.tushare.getTopList();
 
     // 转换为标准格式并排序
-    return this.transformAndSort(data, options);
+    return this.transformAndFormat(data);
   }
 
   /**
@@ -130,7 +101,6 @@ export class TopListViewer {
    * 从当前日期开始，向前查找最近 N 个交易日的龙虎榜数据
    *
    * @param days - 交易天数
-   * @param options - 查询选项
    * @returns 龙虎榜列表项数组
    *
    * @example
@@ -139,28 +109,19 @@ export class TopListViewer {
    *
    * // 获取最近 5 个交易日龙虎榜
    * const last5Days = await viewer.getHistoricalTopList(5);
-   *
-   * // 获取最近 10 个交易日龙虎榜 TOP50
-   * const last10DaysTop50 = await viewer.getHistoricalTopList(10, {
-   *   limit: 50
-   * });
    * ```
    */
-  async getHistoricalTopList(days: number, options: TopListOptions = {}): Promise<TopListItem[]> {
+  async getHistoricalTopList(days: number): Promise<TopListItem[]> {
     if (days <= 0) {
       throw new Error('days must be greater than 0');
     }
-
-    // 限制最大查询天数（避免过多 API 请求）
-    const maxDays = 30;
-    const queryDays = Math.min(days, maxDays);
 
     const allData: TopListData[] = [];
     let currentDate = new Date();
     let collectedDays = 0;
 
     // 向前查找交易日
-    while (collectedDays < queryDays) {
+    while (collectedDays < days) {
       // 检查是否为交易日
       if (!TradingCalendar.isTradingDay(currentDate)) {
         // 前移一天
@@ -191,7 +152,7 @@ export class TopListViewer {
     }
 
     // 转换为标准格式并排序
-    return this.transformAndSort(allData, options);
+    return this.transformAndFormat(allData);
   }
 
   /**
@@ -201,7 +162,6 @@ export class TopListViewer {
    *
    * @param symbol - 股票代码（如 600519.SH 或 600519）
    * @param days - 查询天数
-   * @param options - 查询选项
    * @returns 龙虎榜列表项数组
    *
    * @example
@@ -210,33 +170,22 @@ export class TopListViewer {
    *
    * // 获取贵州茅台最近 10 次上榜记录
    * const moutaiHistory = await viewer.getStockTopListHistory('600519.SH', 10);
-   *
-   * // 获取最近 30 天内的上榜记录，按净买入排序
-   * const moutaiSorted = await viewer.getStockTopListHistory('600519.SH', 30, {
-   *   sortBy: 'netAmount',
-   *   sortOrder: 'desc'
-   * });
    * ```
    */
   async getStockTopListHistory(
     symbol: string,
-    days: number,
-    options: TopListOptions = {}
+    days: number
   ): Promise<TopListItem[]> {
     if (days <= 0) {
       throw new Error('days must be greater than 0');
     }
-
-    // 限制最大查询天数
-    const maxDays = 365; // 最多查询一年
-    const queryDays = Math.min(days, maxDays);
 
     const allData: TopListData[] = [];
     let currentDate = new Date();
     let collectedDays = 0;
 
     // 向前查找交易日
-    while (collectedDays < queryDays) {
+    while (collectedDays < days) {
       // 检查是否为交易日
       if (!TradingCalendar.isTradingDay(currentDate)) {
         // 前移一天
@@ -272,52 +221,37 @@ export class TopListViewer {
     }
 
     // 转换为标准格式并排序
-    return this.transformAndSort(allData, options);
+    return this.transformAndFormat(allData);
   }
 
   /**
    * 转换数据格式并排序
    *
+   * 按净买入金额降序排序
+   *
    * @param data - 原始龙虎榜数据
-   * @param options - 排序选项
    * @returns 排序后的龙虎榜列表项
    * @private
    */
-  private transformAndSort(
-    data: TopListData[],
-    options: TopListOptions
-  ): TopListItem[] {
+  private transformAndFormat(data: TopListData[]): TopListItem[] {
     // 转换为标准格式
-    let items: TopListItem[] = data.map((item, index) => ({
+    const items: TopListItem[] = data.map((item) => ({
       tsCode: item.ts_code,
       name: item.name,
       reason: item.reason,
       buyAmount: item.buy_amount || 0,
       sellAmount: item.sell_amount || 0,
       netAmount: item.net_amount || 0,
-      rank: index + 1,
+      rank: 0, // 稍后计算
     }));
 
-    // 排序
-    const sortBy = options.sortBy || 'netAmount';
-    const sortOrder = options.sortOrder || 'desc';
+    // 按净买入金额降序排序
+    items.sort((a, b) => b.netAmount - a.netAmount);
 
-    items.sort((a, b) => {
-      const aVal = a[sortBy];
-      const bVal = b[sortBy];
-      return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+    // 计算排名
+    items.forEach((item, index) => {
+      item.rank = index + 1;
     });
-
-    // 重新计算排名
-    items = items.map((item, index) => ({
-      ...item,
-      rank: index + 1,
-    }));
-
-    // 应用 limit 限制
-    if (options.limit && options.limit > 0) {
-      items = items.slice(0, options.limit);
-    }
 
     return items;
   }
