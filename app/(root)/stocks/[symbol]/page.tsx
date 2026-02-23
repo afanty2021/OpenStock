@@ -2,6 +2,7 @@ import TradingViewWidget from "@/components/TradingViewWidget";
 import WatchlistButton from "@/components/WatchlistButton";
 import TopListPanel from "@/components/watchlist/TopListPanel";
 import MoneyFlowCard from "@/components/watchlist/MoneyFlowCard";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
     SYMBOL_INFO_WIDGET_CONFIG,
     CANDLE_CHART_WIDGET_CONFIG,
@@ -18,7 +19,7 @@ import { formatSymbolForTradingView } from '@/lib/utils';
 import { AStockCodeUtil } from '@/lib/data-sources/astock';
 import { Suspense } from 'react';
 
-export default async function StockDetails({ params }: StockDetailsPageProps) {
+export default async function StockDetails({ params }: { params: Promise<{ symbol: string }> }) {
     const { symbol } = await params;
     const tvSymbol = formatSymbolForTradingView(symbol);
     const scriptUrl = `https://s3.tradingview.com/external-embedding/embed-widget-`;
@@ -92,12 +93,14 @@ export default async function StockDetails({ params }: StockDetailsPageProps) {
                     {/* 资金流向信息 - 仅 A 股显示 */}
                     {/* 资金流向数据展示主力资金、大单交易情况和5日趋势，帮助用户分析市场情绪 */}
                     {isAStock && (
-                        <Suspense fallback={<MoneyFlowCardSkeleton />}>
-                            <MoneyFlowCard
-                                symbol={AStockCodeUtil.toTushareCode(symbol)}
-                                showTrend={true}
-                            />
-                        </Suspense>
+                        <ErrorBoundary>
+                            <Suspense fallback={<MoneyFlowCardSkeleton />}>
+                                <MoneyFlowCard
+                                    symbol={AStockCodeUtil.toTushareCode(symbol)}
+                                    showTrend={true}
+                                />
+                            </Suspense>
+                        </ErrorBoundary>
                     )}
 
                     {/* 龙虎榜信息 - 仅 A 股显示 */}

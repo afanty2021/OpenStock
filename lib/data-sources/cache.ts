@@ -88,3 +88,11 @@ export class CacheManager {
     financials: (symbol: string) => `financials:${symbol}`,
   };
 }
+
+/**
+ * 全局缓存实例
+ * 根据环境变量 DATA_SOURCE_CACHE_ENABLED 启用/禁用
+ */
+export const dataCache = new CacheManager(
+  process.env.DATA_SOURCE_CACHE_ENABLED === 'true'
+);

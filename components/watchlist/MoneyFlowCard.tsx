@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, RefreshCw, AlertCircle, Activity } from 'lucide-react';
 import { getMoneyFlowData, getMoneyFlowTrend, type MoneyFlowResult, type MoneyFlowTrendResult } from '@/lib/actions/moneyflow.actions';
-import { formatWanAmount } from '@/lib/utils';
+import { formatWanAmount, formatDateToMM_DD } from '@/lib/utils';
 import type { MoneyFlowData, MoneyFlowTrendAnalysis } from '@/lib/data-sources/astock/money-flow-monitor';
 
 /**
@@ -79,7 +79,7 @@ function getTrendBgClass(value: number): string {
  * <MoneyFlowCard symbol="600519.SH" showTrend={true} />
  * ```
  */
-export default function MoneyFlowCard({
+function MoneyFlowCardComponent({
   symbol,
   showTrend = true,
   theme = 'dark',
@@ -288,7 +288,7 @@ export default function MoneyFlowCard({
                 {trendData.data.slice().reverse().map((dayData, index) => (
                   <div key={`${dayData.tradeDate}-${index}`} className="flex items-center space-x-2">
                     <span className="text-[10px] text-gray-500 w-16 flex-shrink-0">
-                      {dayData.tradeDate.substring(5)} {/* MM-DD */}
+                      {formatDateToMM_DD(dayData.tradeDate)}
                     </span>
                     <div className="flex-1 bg-gray-700/50 rounded-full h-4 overflow-hidden relative">
                       <div
@@ -326,3 +326,21 @@ export default function MoneyFlowCard({
     </div>
   );
 }
+
+/**
+ * 自定义比较函数用于 React.memo
+ * 仅在关键 props 变化时重新渲染
+ */
+const arePropsEqual = (
+  prevProps: Readonly<MoneyFlowCardProps>,
+  nextProps: Readonly<MoneyFlowCardProps>
+): boolean => {
+  return (
+    prevProps.symbol === nextProps.symbol &&
+    prevProps.showTrend === nextProps.showTrend &&
+    prevProps.theme === nextProps.theme &&
+    prevProps.className === nextProps.className
+  );
+};
+
+export default React.memo(MoneyFlowCardComponent, arePropsEqual);

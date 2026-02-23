@@ -2,6 +2,7 @@
 
 import { TushareSource } from '@/lib/data-sources/sources/tushare';
 import { MoneyFlowMonitor } from '@/lib/data-sources/astock/money-flow-monitor';
+import { dataCache } from '@/lib/data-sources/cache';
 import type { MoneyFlowData, MoneyFlowTrendAnalysis } from '@/lib/data-sources/astock/money-flow-monitor';
 
 /**
@@ -11,6 +12,7 @@ export type MoneyFlowResult = {
   success: boolean;
   data?: MoneyFlowData;
   error?: string;
+  cached?: boolean; // 标识是否为缓存数据
 };
 
 /**
@@ -54,6 +56,8 @@ export async function getMoneyFlowData(
   symbol: string,
   date?: string
 ): Promise<MoneyFlowResult> {
+  const cacheKey = `moneyflow:${symbol}:${date || 'latest'}`;
+
   try {
     // 创建 Tushare 数据源实例（token 从环境变量自动读取）
     const tushare = new TushareSource();
@@ -62,16 +66,47 @@ export async function getMoneyFlowData(
     // 获取资金流向数据
     const data = await monitor.getStockMoneyFlow(symbol, date);
 
+    // 缓存成功获取的数据
+    await dataCache.set(cacheKey, data, 60);
+
     return {
       success: true,
       data,
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+
+    // 检查是否为非交易时段错误
+    if (errorMessage.includes('Market is closed') ||
+        errorMessage.includes('非交易时段') ||
+        errorMessage.includes('市场关闭') ||
+        errorMessage.includes('不在交易时间')) {
+      // 尝试返回缓存数据
+      try {
+        const cached = await dataCache.get(cacheKey) as MoneyFlowData | null;
+        if (cached) {
+          return {
+            success: true,
+            data: cached,
+            cached: true, // 标识为缓存数据
+          };
+        }
+      } catch (cacheError) {
+        console.error('Failed to retrieve cached data:', cacheError);
+      }
+
+      // 无缓存数据可用
+      return {
+        success: false,
+        error: '当前非交易时段，且无缓存数据可用',
+      };
+    }
+
     console.error('Failed to fetch money flow data:', error);
     return {
       success: false,
       data: undefined,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: errorMessage,
     };
   }
 }

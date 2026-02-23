@@ -196,3 +196,28 @@ export function formatWanAmount(amount: number): string {
     }
     return (amount / 10000).toFixed(2) + '万';
 }
+
+/**
+ * 格式化日期字符串为 MM-DD 格式
+ * 支持多种输入格式：YYYY-MM-DD 或 YYYYMMDD
+ *
+ * @param dateStr - 日期字符串（YYYY-MM-DD 或 YYYYMMDD 格式）
+ * @returns MM-DD 格式的日期字符串
+ *
+ * @example
+ * formatDateToMM_DD('2026-02-23') // '02-23'
+ * formatDateToMM_DD('20260223')   // '02-23'
+ */
+export function formatDateToMM_DD(dateStr: string): string {
+    if (!dateStr) return '';
+
+    if (dateStr.includes('-')) {
+        // YYYY-MM-DD 格式
+        return dateStr.substring(5); // 返回 MM-DD
+    } else if (dateStr.length === 8) {
+        // YYYYMMDD 格式
+        return `${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+    }
+
+    return dateStr;
+}
