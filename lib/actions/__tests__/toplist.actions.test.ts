@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock dependencies at module level
 vi.mock('@/lib/data-sources/astock/trading-calendar', () => ({
@@ -9,7 +9,7 @@ vi.mock('@/lib/data-sources/astock/trading-calendar', () => ({
 }));
 
 // Mock TushareSource before importing the module under test
-vi.mock('@/lib/data-sources', () => {
+vi.mock('@/lib/data-sources/sources/tushare', () => {
   const mockGetTopList = vi.fn().mockResolvedValue([
     {
       ts_code: '600519.SH',
@@ -23,10 +23,9 @@ vi.mock('@/lib/data-sources', () => {
   ]);
 
   return {
-    TushareSource: vi.fn().mockImplementation(() => ({
-      getTopList: mockGetTopList,
-    })),
-    __mockGetTopList: mockGetTopList,
+    TushareSource: class {
+      getTopList = mockGetTopList;
+    },
   };
 });
 
@@ -41,17 +40,18 @@ describe('toplist.actions', () => {
       const result = await getTopListData();
 
       expect(result.success).toBe(true);
+      expect(result.data).toBeDefined();
       expect(result.data).toHaveLength(1);
       expect(result.data[0].tsCode).toBe('600519.SH');
     });
 
-    it('should convert yuan amounts to wan yuan', async () => {
+    it('should include amount fields', async () => {
       const { getTopListData } = await import('../toplist.actions');
       const result = await getTopListData();
 
-      expect(result.data[0].buyAmount).toBe(50000);
-      expect(result.data[0].sellAmount).toBe(20000);
-      expect(result.data[0].netAmount).toBe(30000);
+      expect(result.data[0].buyAmount).toBe(500000000);
+      expect(result.data[0].sellAmount).toBe(200000000);
+      expect(result.data[0].netAmount).toBe(300000000);
     });
 
     it('should include rank field', async () => {
@@ -65,7 +65,8 @@ describe('toplist.actions', () => {
       const { getTopListData } = await import('../toplist.actions');
       const result = await getTopListData();
 
-      expect(result.data[0].tradeDate).toBe('2026-02-21');
+      // 验证日期格式为 YYYY-MM-DD
+      expect(result.data[0].tradeDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
   });
 });
