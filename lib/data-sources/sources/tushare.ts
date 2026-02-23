@@ -238,6 +238,39 @@ export interface MarginDetailData {
 }
 
 /**
+ * 财经新闻数据
+ *
+ * Tushare news 接口返回的财经新闻数据
+ * 包含新闻标题、内容、来源、发布时间等信息
+ */
+export interface NewsData {
+  id: string;              // 新闻ID
+  title: string;           // 新闻标题
+  content: string;         // 新闻内容（摘要）
+  source: string;          // 新闻来源
+  pub_time: string;        // 发布时间（格式：YYYY-MM-DD HH:MM:SS）
+  url: string;             // 原文链接
+  related_stocks?: string[]; // 相关股票代码
+}
+
+/**
+ * 财经新闻查询选项
+ */
+export interface NewsOptions {
+  /** 新闻来源（可选） */
+  source?: string;
+
+  /** 开始日期（格式：YYYYMMDD） */
+  startDate?: string;
+
+  /** 结束日期（格式：YYYYMMDD） */
+  endDate?: string;
+
+  /** 返回条数限制 */
+  limit?: number;
+}
+
+/**
  * 融资融券查询选项
  */
 export interface MarginDetailOptions {
@@ -1180,6 +1213,136 @@ export class TushareSource extends BaseDataSource {
     // limit <= 0 或 undefined: 返回所有记录（无限制）
     const limit = options.limit;
     if (limit && limit > 0 && data.length > limit) {
+      return data.slice(0, limit);
+    }
+
+    return data;
+  }
+
+  /**
+   * 获取财经新闻数据
+   * 接口：news
+   *
+   * 获取市场财经新闻，支持来源筛选和日期范围查询
+   *
+   * @param options 查询选项
+   * @param options.source 新闻来源（如 '财新'、'华尔街见闻' 等）
+   * @param options.startDate 开始日期（格式：YYYYMMDD）
+   * @param options.endDate 结束日期（格式：YYYYMMDD）
+   * @param options.limit 返回条数限制，默认 50 条
+   * @returns 财经新闻数据数组
+   *
+   * @example
+   * ```ts
+   * // 获取最新财经新闻
+   * const news = await tushare.getNews();
+   *
+   * // 获取指定日期的新闻
+   * const news = await tushare.getNews({ startDate: '20260220', endDate: '20260220' });
+   *
+   * // 获取财新来源的新闻
+   * const news = await tushare.getNews({ source: '财新', limit: 20 });
+   * ```
+   */
+  async getNews(options?: NewsOptions): Promise<NewsData[]> {
+    // 构建请求参数
+    const params: Record<string, string | number> = {};
+
+    if (options?.source) {
+      params.source = options.source;
+    }
+    if (options?.startDate) {
+      params.start_date = options.startDate;
+    }
+    if (options?.endDate) {
+      params.end_date = options.endDate;
+    }
+
+    // 默认限制 50 条
+    const limit = options?.limit || 50;
+
+    // fetchWithRetry 会在全部重试失败后抛出原始错误
+    // 不需要检查 null，直接使用返回值
+    const data = await this.fetchWithRetry(async () => {
+      if (!this.token) {
+        throw new Error('Tushare API token is not configured');
+      }
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_name: 'news',
+          token: this.token,
+          params,
+          fields: 'id,title,content,source,pub_time,url'
+        })
+      });
+
+      const result: TushareResponse = await response.json();
+
+      if (result.code !== 0) {
+        // 保留原始错误信息，便于调试和问题追踪
+        const originalError = result.msg || 'Unknown error';
+        throw new Error(`Tushare API error (code: ${result.code}): ${originalError}`);
+      }
+
+      return transformTushareData<NewsData>(result);
+    });
+
+    // 应用 limit 限制
+    if (data.length > limit) {
+      return data.slice(0, limit);
+    }
+
+    return data;
+  }
+
+  /**
+   * 获取热点新闻话题
+   * 接口：news_hot
+   *
+   * 获取市场热点新闻话题排行
+   *
+   * @param limit 返回条数限制，默认 20 条
+   * @returns 热点新闻话题数组
+   *
+   * @example
+   * ```ts
+   * // 获取热点新闻
+   * const hotNews = await tushare.getHotNews();
+   * ```
+   */
+  async getHotNews(limit: number = 20): Promise<{ id: string; title: string; hot: number; url: string }[]> {
+    // fetchWithRetry 会在全部重试失败后抛出原始错误
+    const data = await this.fetchWithRetry(async () => {
+      if (!this.token) {
+        throw new Error('Tushare API token is not configured');
+      }
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_name: 'news_hot',
+          token: this.token,
+          params: {},
+          fields: 'id,title,hot,url'
+        })
+      });
+
+      const result: TushareResponse = await response.json();
+
+      if (result.code !== 0) {
+        const originalError = result.msg || 'Unknown error';
+        throw new Error(`Tushare API error (code: ${result.code}): ${originalError}`);
+      }
+
+      return transformTushareData<{ id: string; title: string; hot: number; url: string }>(result);
+    });
+
+    // 应用 limit 限制
+    if (data.length > limit) {
       return data.slice(0, limit);
     }
 
