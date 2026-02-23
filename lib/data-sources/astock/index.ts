@@ -66,3 +66,21 @@ export {
   type MarginTrendResult,
   type SentimentAnalysisResult,
 } from './margin-trading';
+
+// 导出 AI 新闻分析器
+export {
+  AINewsAnalyzer,
+  getAINewsAnalyzer,
+  type HotTopic,
+  type NewsArticle,
+  type NewsAnalysisResult,
+  type ScreenerCriteria,
+  type ScreenerResult,
+  type BacktestConfig,
+  type BacktestPosition,
+  type BacktestResult,
+  type SavedStrategy,
+} from './ai-news-analyzer';
+
+// 导出类型定义（备用）
+export * from './types';
