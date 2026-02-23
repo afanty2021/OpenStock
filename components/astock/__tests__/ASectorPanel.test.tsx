@@ -1,0 +1,270 @@
+/**
+ * ASectorPanel 组件测试
+ *
+ * 测试板块面板组件的渲染和交互功能
+ * @module components/astock/__tests__/ASectorPanel.test
+ */
+
+import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import ASectorPanel from '../ASectorPanel';
+
+// Mock utils
+vi.mock('@/lib/utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/utils')>();
+  return {
+    ...actual,
+    formatWanAmount: (amount: number) => `${amount.toFixed(0)}万`,
+  };
+});
+
+// Mock TradingCalendar
+vi.mock('@/lib/data-sources/astock/trading-calendar', () => ({
+  TradingCalendar: {
+    getTradingStatus: () => ({
+      status: 'CLOSED',
+      session: undefined,
+      note: '市场休市',
+    }),
+  },
+}));
+
+// Mock Next.js Link
+vi.mock('next/link', () => ({
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => {
+    return <a href={href}>{children}</a>;
+  },
+}));
+
+describe('ASectorPanel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('基础渲染', () => {
+    it('应该渲染行业板块面板', () => {
+      render(<ASectorPanel type="industry" limit={10} />);
+
+      expect(screen.getByText(/行业板块/)).toBeDefined();
+      expect(screen.getByText(/热门/)).toBeDefined();
+    });
+
+    it('应该渲染概念板块面板', () => {
+      render(<ASectorPanel type="concept" limit={10} />);
+
+      expect(screen.getByText(/概念板块/)).toBeDefined();
+      expect(screen.getByText(/热门/)).toBeDefined();
+    });
+
+    it('应该应用自定义 className', () => {
+      const { container } = render(
+        <ASectorPanel type="industry" className="custom-class" />
+      );
+
+      const panel = container.firstChild as HTMLElement;
+      expect(panel.className).toContain('custom-class');
+    });
+  });
+
+  describe('排行榜类型切换', () => {
+    it('应该默认显示热门板块', () => {
+      render(<ASectorPanel type="industry" limit={10} />);
+
+      expect(screen.getByText(/行业板块 热门/)).toBeDefined();
+    });
+
+    it('应该切换到冷门板块', async () => {
+      render(<ASectorPanel type="industry" limit={10} />);
+
+      const coldButton = screen.getByText(/冷门/);
+      fireEvent.click(coldButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/行业板块 冷门/)).toBeDefined();
+      });
+    });
+
+    it('应该切换到全部板块', async () => {
+      render(<ASectorPanel type="industry" limit={10} />);
+
+      const allButton = screen.getByText(/全部/);
+      fireEvent.click(allButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/行业板块 全部/)).toBeDefined();
+      });
+    });
+  });
+
+  describe('板块数据渲染', () => {
+    it('应该显示板块列表', async () => {
+      render(<ASectorPanel type="industry" limit={5} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('农林牧渔')).toBeDefined();
+        expect(screen.getByText('801010.SH')).toBeDefined();
+      });
+    });
+
+    it('应该显示涨跌幅信息', async () => {
+      render(<ASectorPanel type="industry" limit={5} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/\+3.25%/)).toBeDefined();
+        expect(screen.getByText(/\+2.88%/)).toBeDefined();
+      });
+    });
+
+    it('应该显示资金流向信息', async () => {
+      render(<ASectorPanel type="industry" limit={5} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/25000万/)).toBeDefined();
+        expect(screen.getByText(/18000万/)).toBeDefined();
+      });
+    });
+
+    it('应该显示排名徽章', async () => {
+      const { container } = render(<ASectorPanel type="industry" limit={5} />);
+
+      await waitFor(() => {
+        const badges = container.querySelectorAll('div[class*="rounded-full"]');
+        expect(badges.length).toBeGreaterThan(0);
+
+        // 检查第一名徽章颜色
+        expect(badges[0].className).toContain('bg-yellow-500/20');
+      });
+    });
+  });
+
+  describe('A股颜色约定', () => {
+    it('应该正确显示上涨颜色（红色）', async () => {
+      render(<ASectorPanel type="industry" limit={5} />);
+
+      await waitFor(() => {
+        const changeElements = screen.getAllByText(/3.25%/);
+        expect(changeElements[0].className).toContain('text-red-400');
+      });
+    });
+
+    it('应该正确显示下跌颜色（绿色）', async () => {
+      render(<ASectorPanel type="industry" limit={10} />);
+
+      // 切换到冷门板块
+      const coldButton = screen.getByText(/冷门/);
+      fireEvent.click(coldButton);
+
+      await waitFor(() => {
+        const changeElements = screen.getAllByText(/-/);
+        expect(changeElements[0].className).toContain('text-green-400');
+      });
+    });
+  });
+
+  describe('交互功能', () => {
+    it('应该支持刷新数据', async () => {
+      render(<ASectorPanel type="industry" limit={5} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('农林牧渔')).toBeDefined();
+      });
+
+      const refreshButton = screen.getByTitle(/刷新数据/);
+      fireEvent.click(refreshButton);
+
+      // 刷新按钮应该存在
+      expect(refreshButton).toBeDefined();
+    });
+
+    it('板块项应该是可点击的链接', async () => {
+      render(<ASectorPanel type="industry" limit={5} />);
+
+      await waitFor(() => {
+        const link = screen.getByText('农林牧渔').closest('a');
+        expect(link?.getAttribute('href')).toBe('/sectors/801010.SH');
+      });
+    });
+  });
+
+  describe('加载状态', () => {
+    it('应该显示加载状态', () => {
+      render(<ASectorPanel type="industry" limit={5} />);
+
+      expect(screen.getByText(/加载中.../)).toBeDefined();
+    });
+  });
+
+  describe('Props 更新', () => {
+    it('应该在 type 变化时重新获取数据', async () => {
+      const { rerender } = render(<ASectorPanel type="industry" limit={5} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/行业板块/)).toBeDefined();
+      }, { timeout: 3000 });
+
+      rerender(<ASectorPanel type="concept" limit={5} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/概念板块/)).toBeDefined();
+      }, { timeout: 3000 });
+    });
+
+    it('应该在 limit 变化时调整显示数量', async () => {
+      const { rerender } = render(<ASectorPanel type="industry" limit={5} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/行业板块/)).toBeDefined();
+      }, { timeout: 3000 });
+
+      rerender(<ASectorPanel type="industry" limit={15} />);
+
+      // 应该显示更多板块
+      await waitFor(() => {
+        const links = screen.getAllByRole('link');
+        expect(links.length).toBeGreaterThan(5);
+      }, { timeout: 3000 });
+    });
+  });
+
+  describe('可访问性', () => {
+    it('刷新按钮应该有正确的 aria-label', () => {
+      render(<ASectorPanel type="industry" limit={5} />);
+
+      const refreshButton = screen.getByLabelText(/刷新数据/);
+      expect(refreshButton).toBeDefined();
+    });
+
+    it('板块类型选择器按钮应该是可访问的', () => {
+      render(<ASectorPanel type="industry" limit={5} />);
+
+      const hotButton = screen.getByRole('button', { name: /热门/ });
+      const coldButton = screen.getByRole('button', { name: /冷门/ });
+      const allButton = screen.getByRole('button', { name: /全部/ });
+
+      expect(hotButton).toBeDefined();
+      expect(coldButton).toBeDefined();
+      expect(allButton).toBeDefined();
+    });
+  });
+
+  describe('概念板块', () => {
+    it('应该显示概念板块数据', async () => {
+      render(<ASectorPanel type="concept" limit={5} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('新能源汽车')).toBeDefined();
+        expect(screen.getByText('TS001')).toBeDefined();
+      });
+    });
+
+    it('概念板块应该显示正确的涨跌幅', async () => {
+      render(<ASectorPanel type="concept" limit={5} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/\+4.25%/)).toBeDefined();
+      });
+    });
+  });
+});

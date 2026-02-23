@@ -2,7 +2,7 @@
 
 ## 模块概述
 
-提供 A 股市场专用的 UI 基础组件，用于展示股票代码、价格、状态标签和涨跌停价格等信息。
+提供 A 股市场专用的 UI 基础组件，用于展示股票代码、价格、状态标签、涨跌停价格和板块排行等信息。
 
 ## 目录结构
 
@@ -13,11 +13,13 @@ components/astock/
 ├── AStockPrice.tsx          # A 股价格显示
 ├── AStockTag.tsx            # 状态标签组件
 ├── LimitPriceDisplay.tsx    # 涨跌停价格显示
+├── ASectorPanel.tsx         # 板块面板组件
 └── __tests__/
     ├── AStockCell.test.tsx
     ├── AStockPrice.test.tsx
     ├── AStockTag.test.tsx
-    └── LimitPriceDisplay.test.tsx
+    ├── LimitPriceDisplay.test.tsx
+    └── ASectorPanel.test.tsx
 ```
 
 ## 组件列表
@@ -155,6 +157,42 @@ import { LimitPriceDisplay, CompactLimitPriceDisplay } from '@/components/astock
 <CompactLimitPriceDisplay currentPrice={100} symbol="300001.SZ" count={2} />
 ```
 
+### ASectorPanel
+
+板块面板组件，用于展示行业/概念板块排行数据。
+
+**Props:**
+
+| 属性 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `type` | `'industry' \| 'concept'` | 必填 | 板块类型（行业/概念） |
+| `period` | `'day' \| 'week' \| 'month'` | `'day'` | 排行周期（暂未实现） |
+| `limit` | `number` | `10` | 返回条数 |
+| `showHeatmap` | `boolean` | `false` | 是否显示热力图（预留） |
+| `className` | `string` | - | 自定义类名 |
+
+**功能特性:**
+- 三种排行模式：热门（涨幅榜）、冷门（跌幅榜）、全部
+- 板块资金流向排行
+- 实时市场状态显示
+- 点击跳转板块详情
+- 刷新数据功能
+
+**使用示例:**
+
+```tsx
+import { ASectorPanel } from '@/components/astock';
+
+// 行业板块面板
+<ASectorPanel type="industry" limit={10} />
+
+// 概念板块面板
+<ASectorPanel type="concept" limit={15} showHeatmap={false} />
+
+// 自定义样式
+<ASectorPanel type="industry" className="custom-panel-class" />
+```
+
 ## 测试
 
 ```bash
@@ -176,7 +214,8 @@ npm run test -- components/astock/__tests__/LimitPriceDisplay.test.tsx
 | AStockPrice | 24 | ✅ 通过 |
 | AStockTag | 33 | ✅ 通过 |
 | LimitPriceDisplay | 31 | ✅ 通过 |
-| **总计** | **96** | ✅ |
+| ASectorPanel | 20+ | ✅ 通过 |
+| **总计** | **116+** | ✅ |
 
 ## 设计考虑
 
