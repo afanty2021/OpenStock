@@ -19,11 +19,19 @@ describe('TushareSource', () => {
   let tushare: TushareSource;
 
   beforeEach(() => {
+    // 确保环境变量存在
+    process.env.TUSHARE_API_TOKEN = 'test_token';
+
     // 创建新实例
     tushare = new TushareSource();
 
     // 重置 mock
     mockFetch.mockReset();
+  });
+
+  afterEach(() => {
+    // 确保环境变量被恢复
+    process.env.TUSHARE_API_TOKEN = 'test_token';
   });
 
   describe('getTopList - 基础功能', () => {
@@ -148,6 +156,69 @@ describe('TushareSource', () => {
       const result = await tushare.getTopList({ tradeDate: '20260222' });
       expect(result).toEqual([]);
       expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    test('应拒绝年份 < 2000 的日期', async () => {
+      // 1999年12月31日
+      const result = await tushare.getTopList({ tradeDate: '19991231' });
+      expect(result).toEqual([]);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    test('应拒绝年份 > 当前年份+1 的日期', async () => {
+      const currentYear = new Date().getFullYear();
+      const futureYear = currentYear + 2;
+      const futureDate = `${futureYear}0101`;
+
+      const result = await tushare.getTopList({ tradeDate: futureDate });
+      expect(result).toEqual([]);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    test('应接受当前年份+1 的日期', async () => {
+      const currentYear = new Date().getFullYear();
+      const nextYear = currentYear + 1;
+
+      // 找一个明年的一月交易日（避开元旦假期）
+      // 1月3日通常是工作日，但需要检查是否为交易日
+      const { TradingCalendar } = await import('../../astock');
+      const testDate = new Date(nextYear, 0, 3); // 1月3日
+
+      // 如果1月3日不是交易日，跳过这个测试
+      if (!TradingCalendar.isTradingDay(testDate)) {
+        // 尝试1月4日和5日
+        testDate.setDate(4);
+        if (!TradingCalendar.isTradingDay(testDate)) {
+          testDate.setDate(5);
+          if (!TradingCalendar.isTradingDay(testDate)) {
+            // 如果前三天都不是交易日，跳过测试（可能是元旦长假）
+            return;
+          }
+        }
+      }
+
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'name', 'reason', 'buy_amount', 'sell_amount', 'net_amount'],
+          items: [],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const year = testDate.getFullYear();
+      const month = String(testDate.getMonth() + 1).padStart(2, '0');
+      const day = String(testDate.getDate()).padStart(2, '0');
+      const nextYearDate = `${year}${month}${day}`;
+
+      const result = await tushare.getTopList({ tradeDate: nextYearDate });
+      expect(result).toEqual([]);
+      // 应该发起 API 请求，因为日期格式有效且是交易日
+      expect(mockFetch).toHaveBeenCalled();
     });
   });
 
@@ -318,35 +389,55 @@ describe('TushareSource', () => {
         data: null,
       };
 
+      // 需要mock 3次因为重试机制会尝试3次
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
       mockFetch.mockResolvedValueOnce({
         json: async () => mockResponse,
       });
 
-      await expect(tushare.getTopList()).rejects.toThrow();
+      await expect(tushare.getTopList()).rejects.toThrow('Tushare API error (code: -1): Invalid API token');
     });
 
     test('网络错误时应重试', async () => {
-      // 前两次失败，第三次成功
-      mockFetch.mockRejectedValueOnce(new Error('Network error'));
-      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+      // 使用 fake timers 加速测试（避免实际等待重试延迟）
+      vi.useFakeTimers();
 
-      const mockResponse = {
-        code: 0,
-        msg: null,
-        data: {
-          fields: ['ts_code', 'name', 'reason', 'buy_amount', 'sell_amount', 'net_amount'],
-          items: [['600519.SH', '贵州茅台', '涨幅偏离值达7%', 1000, 2000, -1000]],
-        },
-      };
+      try {
+        // 前两次失败，第三次成功
+        mockFetch.mockRejectedValueOnce(new Error('Network error'));
+        mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
-      mockFetch.mockResolvedValueOnce({
-        json: async () => mockResponse,
-      });
+        const mockResponse = {
+          code: 0,
+          msg: null,
+          data: {
+            fields: ['ts_code', 'name', 'reason', 'buy_amount', 'sell_amount', 'net_amount'],
+            items: [['600519.SH', '贵州茅台', '涨幅偏离值达7%', 1000, 2000, -1000]],
+          },
+        };
 
-      const result = await tushare.getTopList();
+        mockFetch.mockResolvedValueOnce({
+          json: async () => mockResponse,
+        });
 
-      expect(result).toHaveLength(1);
-      expect(mockFetch).toHaveBeenCalledTimes(3);
+        // 启动请求但不等待
+        const promise = tushare.getTopList();
+
+        // 快速推进时间，跳过所有重试延迟
+        await vi.runAllTimersAsync();
+
+        const result = await promise;
+
+        expect(result).toHaveLength(1);
+        expect(mockFetch).toHaveBeenCalledTimes(3);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
@@ -503,7 +594,7 @@ describe('TushareSource', () => {
       delete process.env.TUSHARE_API_TOKEN;
       const tushareNoToken = new TushareSource();
 
-      await expect(tushareNoToken.getQuote('600519.SH')).rejects.toThrow('Failed to fetch quote after retries');
+      await expect(tushareNoToken.getQuote('600519.SH')).rejects.toThrow('Tushare API token is not configured');
 
       // 恢复环境变量
       process.env.TUSHARE_API_TOKEN = 'test_token';
@@ -516,11 +607,18 @@ describe('TushareSource', () => {
         data: null,
       };
 
+      // 需要mock 3次因为重试机制会尝试3次
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
       mockFetch.mockResolvedValueOnce({
         json: async () => mockResponse,
       });
 
-      await expect(tushare.getQuote('600519.SH')).rejects.toThrow();
+      await expect(tushare.getQuote('600519.SH')).rejects.toThrow('Tushare API error (code: -1): Invalid API token');
     });
 
     test('无数据时应抛出异常', async () => {
@@ -533,11 +631,18 @@ describe('TushareSource', () => {
         },
       };
 
+      // 需要mock 3次因为重试机制会尝试3次
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
       mockFetch.mockResolvedValueOnce({
         json: async () => mockResponse,
       });
 
-      await expect(tushare.getQuote('600519.SH')).rejects.toThrow('Failed to fetch quote after retries');
+      await expect(tushare.getQuote('600519.SH')).rejects.toThrow('No data available');
     });
   });
 

@@ -180,6 +180,8 @@ export class TushareSource extends BaseDataSource {
   async getQuote(symbol: string): Promise<DataSourceResult<QuoteDataType>> {
     const tsCode = StockCodeValidator.toTushareCode(symbol);
 
+    // fetchWithRetry 会在全部重试失败后抛出原始错误
+    // 不需要检查 null，直接使用返回值
     const data = await this.fetchWithRetry(async () => {
       if (!this.token) {
         throw new Error('Tushare API token is not configured');
@@ -201,7 +203,9 @@ export class TushareSource extends BaseDataSource {
       const result: TushareResponse = await response.json();
 
       if (result.code !== 0) {
-        throw new Error(result.msg || 'Tushare API error');
+        // 保留原始错误信息，便于调试和问题追踪
+        const originalError = result.msg || 'Unknown error';
+        throw new Error(`Tushare API error (code: ${result.code}): ${originalError}`);
       }
 
       // 转换数组格式为对象
@@ -212,10 +216,6 @@ export class TushareSource extends BaseDataSource {
 
       return records[0];
     });
-
-    if (!data) {
-      throw new Error('Failed to fetch quote after retries');
-    }
 
     return {
       data: this.normalizeQuote(data, symbol),
@@ -230,6 +230,8 @@ export class TushareSource extends BaseDataSource {
   async getProfile(symbol: string): Promise<DataSourceResult<ProfileDataType>> {
     const tsCode = StockCodeValidator.toTushareCode(symbol);
 
+    // fetchWithRetry 会在全部重试失败后抛出原始错误
+    // 不需要检查 null，直接使用返回值
     const data = await this.fetchWithRetry(async () => {
       if (!this.token) {
         throw new Error('Tushare API token is not configured');
@@ -252,16 +254,14 @@ export class TushareSource extends BaseDataSource {
       const result: TushareResponse = await response.json();
 
       if (result.code !== 0) {
-        throw new Error(result.msg || 'Tushare API error');
+        // 保留原始错误信息，便于调试和问题追踪
+        const originalError = result.msg || 'Unknown error';
+        throw new Error(`Tushare API error (code: ${result.code}): ${originalError}`);
       }
 
       const records = transformTushareData<any>(result);
       return records[0] || {};
     });
-
-    if (!data) {
-      throw new Error('Failed to fetch profile after retries');
-    }
 
     return {
       data: this.normalizeProfile(data, symbol),
@@ -276,6 +276,8 @@ export class TushareSource extends BaseDataSource {
   async getFinancials(symbol: string): Promise<DataSourceResult<FinancialDataType>> {
     const tsCode = StockCodeValidator.toTushareCode(symbol);
 
+    // fetchWithRetry 会在全部重试失败后抛出原始错误
+    // 不需要检查 null，直接使用返回值
     const data = await this.fetchWithRetry(async () => {
       if (!this.token) {
         throw new Error('Tushare API token is not configured');
@@ -297,16 +299,14 @@ export class TushareSource extends BaseDataSource {
       const result: TushareResponse = await response.json();
 
       if (result.code !== 0) {
-        throw new Error(result.msg || 'Tushare API error');
+        // 保留原始错误信息，便于调试和问题追踪
+        const originalError = result.msg || 'Unknown error';
+        throw new Error(`Tushare API error (code: ${result.code}): ${originalError}`);
       }
 
       const records = transformTushareData<any>(result);
       return records[0] || {};
     });
-
-    if (!data) {
-      throw new Error('Failed to fetch financials after retries');
-    }
 
     return {
       data: this.normalizeFinancials(data, symbol),
@@ -472,6 +472,8 @@ export class TushareSource extends BaseDataSource {
     // 转换股票代码格式
     const queryTsCode = options?.tsCode ? StockCodeValidator.toTushareCode(options.tsCode) : undefined;
 
+    // fetchWithRetry 会在全部重试失败后抛出原始错误
+    // 不需要检查 null，直接使用返回值
     const data = await this.fetchWithRetry(async () => {
       if (!this.token) {
         throw new Error('Tushare API token is not configured');
@@ -497,17 +499,17 @@ export class TushareSource extends BaseDataSource {
       const result: TushareResponse = await response.json();
 
       if (result.code !== 0) {
-        throw new Error(result.msg || 'Tushare API error');
+        // 保留原始错误信息，便于调试和问题追踪
+        const originalError = result.msg || 'Unknown error';
+        throw new Error(`Tushare API error (code: ${result.code}): ${originalError}`);
       }
 
       return transformTushareData<TopListData>(result);
     });
 
-    if (!data) {
-      throw new Error('Failed to fetch top list after retries');
-    }
-
     // 应用 limit 限制
+    // limit > 0: 返回前 N 条记录
+    // limit <= 0 或 undefined: 返回所有记录（无限制）
     const limit = options?.limit;
     if (limit && limit > 0 && data.length > limit) {
       return data.slice(0, limit);
@@ -534,6 +536,14 @@ export class TushareSource extends BaseDataSource {
     const year = parseInt(date.substring(0, 4), 10);
     const month = parseInt(date.substring(4, 6), 10);
     const day = parseInt(date.substring(6, 8), 10);
+
+    // 添加日期范围验证（2000-当前年份+1）
+    // A 股市场于 2000 年后逐步完善，之前的日期数据不完整
+    const currentYear = new Date().getFullYear();
+    if (year < 2000 || year > currentYear + 1) {
+      return false;
+    }
+
     const testDate = new Date(year, month - 1, day);
 
     // 检查日期解析有效性
@@ -561,6 +571,8 @@ export class TushareSource extends BaseDataSource {
     const tsCode = StockCodeValidator.toTushareCode(symbol);
     const date = tradeDate || this.getLatestTradeDate();
 
+    // fetchWithRetry 会在全部重试失败后抛出原始错误
+    // 不需要检查 null，直接使用返回值
     const data = await this.fetchWithRetry(async () => {
       if (!this.token) {
         throw new Error('Tushare API token is not configured');
@@ -580,7 +592,9 @@ export class TushareSource extends BaseDataSource {
       const result: TushareResponse = await response.json();
 
       if (result.code !== 0) {
-        throw new Error(result.msg || 'Tushare API error');
+        // 保留原始错误信息，便于调试和问题追踪
+        const originalError = result.msg || 'Unknown error';
+        throw new Error(`Tushare API error (code: ${result.code}): ${originalError}`);
       }
 
       const records = transformTushareData<MoneyFlowData>(result);
@@ -590,10 +604,6 @@ export class TushareSource extends BaseDataSource {
 
       return records[0];
     });
-
-    if (!data) {
-      throw new Error('Failed to fetch money flow after retries');
-    }
 
     return data;
   }
@@ -610,6 +620,8 @@ export class TushareSource extends BaseDataSource {
     const tsCode = StockCodeValidator.toTushareCode(symbol);
     const date = tradeDate;
 
+    // fetchWithRetry 会在全部重试失败后抛出原始错误
+    // 不需要检查 null，直接使用返回值
     const data = await this.fetchWithRetry(async () => {
       if (!this.token) {
         throw new Error('Tushare API token is not configured');
@@ -635,7 +647,9 @@ export class TushareSource extends BaseDataSource {
       const result: TushareResponse = await response.json();
 
       if (result.code !== 0) {
-        throw new Error(result.msg || 'Tushare API error');
+        // 保留原始错误信息，便于调试和问题追踪
+        const originalError = result.msg || 'Unknown error';
+        throw new Error(`Tushare API error (code: ${result.code}): ${originalError}`);
       }
 
       const records = transformTushareData<DailyBasicData>(result);
@@ -646,10 +660,6 @@ export class TushareSource extends BaseDataSource {
       // 如果没有指定日期，返回最新的一条记录
       return date ? records[0] : records[0];
     });
-
-    if (!data) {
-      throw new Error('Failed to fetch daily basic after retries');
-    }
 
     return data;
   }

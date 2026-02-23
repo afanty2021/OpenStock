@@ -56,27 +56,33 @@ export abstract class BaseDataSource implements StockDataSource {
    * @param fn 要执行的异步函数
    * @param maxRetries 最大重试次数
    * @returns 函数结果或 null（全部失败时）
+   * @throws 当所有重试都失败时，保留最后一次错误并抛出
    */
   protected async fetchWithRetry<T>(
     fn: () => Promise<T>,
     maxRetries = 3
   ): Promise<T | null> {
+    let lastError: Error | null = null;
+
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const result = await fn();
         this.updateSuccessRate(true);
         return result;
       } catch (error) {
+        // 保留原始错误
+        lastError = error instanceof Error ? error : new Error(String(error));
         const delay = Math.pow(2, attempt) * 1000; // 指数退避：1s, 2s, 4s
 
         console.warn(
           `[${this.name}] Retry ${attempt + 1}/${maxRetries} after ${delay}ms`,
-          error instanceof Error ? error.message : String(error)
+          lastError.message
         );
 
         if (attempt === maxRetries - 1) {
           this.updateSuccessRate(false);
-          return null;
+          // 抛出保留的原始错误，而不是返回 null
+          throw lastError;
         }
 
         await new Promise((resolve) => setTimeout(resolve, delay));
