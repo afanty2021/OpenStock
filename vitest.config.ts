@@ -4,8 +4,8 @@ import { resolve } from 'node:path';
 export default defineConfig({
   test: {
     globals: true,
-    environment: 'node',
-    include: ['**/__tests__/**/*.test.ts'],
+    environment: 'jsdom',
+    include: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx'],
     exclude: ['node_modules', 'dist', '.next'],
     coverage: {
       provider: 'v8',
