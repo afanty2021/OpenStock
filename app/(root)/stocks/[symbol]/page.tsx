@@ -1,6 +1,7 @@
 import TradingViewWidget from "@/components/TradingViewWidget";
 import WatchlistButton from "@/components/WatchlistButton";
 import TopListPanel from "@/components/watchlist/TopListPanel";
+import MoneyFlowCard from "@/components/watchlist/MoneyFlowCard";
 import {
     SYMBOL_INFO_WIDGET_CONFIG,
     CANDLE_CHART_WIDGET_CONFIG,
@@ -88,6 +89,17 @@ export default async function StockDetails({ params }: StockDetailsPageProps) {
                         height={800}
                     />
 
+                    {/* 资金流向信息 - 仅 A 股显示 */}
+                    {/* 资金流向数据展示主力资金、大单交易情况和5日趋势，帮助用户分析市场情绪 */}
+                    {isAStock && (
+                        <Suspense fallback={<MoneyFlowCardSkeleton />}>
+                            <MoneyFlowCard
+                                symbol={AStockCodeUtil.toTushareCode(symbol)}
+                                showTrend={true}
+                            />
+                        </Suspense>
+                    )}
+
                     {/* 龙虎榜信息 - 仅 A 股显示 */}
                     {/* 龙虎榜是 A 股市场特有的交易信息公开机制，只有达到特定涨跌停或换手率等条件的股票才会上榜 */}
                     {isAStock && (
@@ -124,6 +136,68 @@ function TopListPanelSkeleton() {
                         <div className="h-4 w-20 bg-gray-800 rounded animate-pulse" />
                     </div>
                 ))}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * MoneyFlowCard 加载骨架屏
+ * 在资金流向数据加载时显示占位内容，提升用户体验
+ */
+function MoneyFlowCardSkeleton() {
+    return (
+        <div className="bg-gray-900/30 rounded-lg border border-gray-800 p-4">
+            <div className="flex items-center justify-between mb-4">
+                <div className="h-6 w-32 bg-gray-800 rounded animate-pulse" />
+                <div className="h-4 w-4 bg-gray-800 rounded animate-pulse" />
+            </div>
+            <div className="space-y-4">
+                {/* 主力净流入卡片骨架 */}
+                <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="space-y-2">
+                            <div className="h-3 w-16 bg-gray-700 rounded animate-pulse" />
+                            <div className="h-8 w-32 bg-gray-700 rounded animate-pulse" />
+                            <div className="h-3 w-20 bg-gray-700 rounded animate-pulse" />
+                        </div>
+                        <div className="h-12 w-12 bg-gray-700 rounded-full animate-pulse" />
+                    </div>
+                    {/* 分项数据骨架 */}
+                    <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-700">
+                        {[...Array(4)].map((_, i) => (
+                            <div key={i} className="space-y-1">
+                                <div className="h-2 w-12 bg-gray-700 rounded animate-pulse" />
+                                <div className="h-4 w-20 bg-gray-700 rounded animate-pulse" />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                {/* 趋势分析骨架 */}
+                <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="h-4 w-16 bg-gray-700 rounded animate-pulse" />
+                        <div className="h-3 w-12 bg-gray-700 rounded animate-pulse" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mb-3 pb-3 border-b border-gray-700">
+                        {[...Array(3)].map((_, i) => (
+                            <div key={i} className="text-center space-y-1">
+                                <div className="h-2 w-12 mx-auto bg-gray-700 rounded animate-pulse" />
+                                <div className="h-3 w-16 mx-auto bg-gray-700 rounded animate-pulse" />
+                            </div>
+                        ))}
+                    </div>
+                    {/* 趋势条形图骨架 */}
+                    <div className="space-y-2">
+                        {[...Array(5)].map((_, i) => (
+                            <div key={i} className="flex items-center space-x-2">
+                                <div className="h-2 w-16 bg-gray-700 rounded animate-pulse" />
+                                <div className="flex-1 h-3 bg-gray-700 rounded-full animate-pulse" />
+                                <div className="h-2 w-16 bg-gray-700 rounded animate-pulse" />
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </div>
         </div>
     );
