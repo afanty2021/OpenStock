@@ -92,5 +92,16 @@ export {
   type FinancialReportReaderConfig,
 } from './financial-report-reader';
 
+// 导出选股筛选器
+export {
+  StockScreener,
+  getStockScreener,
+  PRESET_STRATEGIES,
+  SCREENER_CRITERIA_TEMPLATES,
+  type ScreenerCriteriaTemplate,
+  type PresetStrategy,
+  type StockScreenerConfig,
+} from './stock-screener';
+
 // 导出类型定义（备用）
 export * from './types';
