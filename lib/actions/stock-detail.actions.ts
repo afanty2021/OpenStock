@@ -45,12 +45,56 @@ export interface StockQuote {
 }
 
 /**
+ * 原始报价数据接口
+ * 对应数据源返回的原始字段格式 (c=current, pc=prevClose, etc.)
+ */
+export interface QuoteData {
+  /** 当前价格 */
+  c?: number;
+  /** 前收盘价 */
+  pc?: number;
+  /** 涨跌额 */
+  d?: number;
+  /** 涨跌幅百分比 */
+  dp?: number;
+  /** 最高价 */
+  h?: number;
+  /** 最低价 */
+  l?: number;
+  /** 成交量 */
+  v?: number;
+  /** 成交额 */
+  a?: number;
+  /** 时间戳 */
+  t?: number;
+}
+
+/**
+ * 类型守卫：检查数据是否为有效的 QuoteData
+ */
+function isQuoteData(data: unknown): data is QuoteData {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+  const obj = data as Record<string, unknown>;
+  // 至少有一个有效数值字段
+  return (
+    typeof obj.c === 'number' ||
+    typeof obj.pc === 'number' ||
+    typeof obj.d === 'number' ||
+    typeof obj.dp === 'number'
+  );
+}
+
+/**
  * 股票详情数据响应
  */
 export interface StockDetailResult {
   success: boolean;
   basic?: StockBasicInfo;
   quote?: StockQuote;
+  /** 警告信息数组，部分数据可用时会返回警告 */
+  warnings?: string[];
   error?: string;
 }
 
@@ -95,24 +139,28 @@ export async function getStockDetail(symbol: string): Promise<StockDetailResult>
     }
 
     // 获取实时报价
+    const warnings: string[] = [];
     let quote: StockQuote | undefined;
     try {
       const quoteData = await dataAggregator.getQuote(normalizedSymbol);
-      if (quoteData) {
+      if (quoteData && isQuoteData(quoteData)) {
         quote = {
-          price: (quoteData as any).c,
-          prevClose: (quoteData as any).pc,
-          change: (quoteData as any).d,
-          changePercent: (quoteData as any).dp,
-          high: (quoteData as any).h,
-          low: (quoteData as any).l,
-          volume: (quoteData as any).v,
-          amount: (quoteData as any).a,
-          timestamp: (quoteData as any).t,
+          price: quoteData.c,
+          prevClose: quoteData.pc,
+          change: quoteData.d,
+          changePercent: quoteData.dp,
+          high: quoteData.h,
+          low: quoteData.l,
+          volume: quoteData.v,
+          amount: quoteData.a,
+          timestamp: quoteData.t,
         };
+      } else if (quoteData) {
+        warnings.push('Quote data format unexpected, some fields may be missing');
       }
     } catch (error) {
       console.error('Failed to fetch quote:', error);
+      warnings.push('Failed to fetch real-time quote');
     }
 
     // 获取股票所属行业板块信息
@@ -130,12 +178,14 @@ export async function getStockDetail(symbol: string): Promise<StockDetailResult>
       }
     } catch (error) {
       console.error('Failed to fetch industry info:', error);
+      warnings.push('Failed to fetch industry information');
     }
 
     return {
       success: true,
       basic,
       quote,
+      warnings: warnings.length > 0 ? warnings : undefined,
     };
   } catch (error) {
     console.error('Failed to fetch stock detail:', error);
