@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowUp, ArrowDown, Bell, ArrowUpDown, ArrowUpIcon, ArrowDownIcon } from "lucide-react";
@@ -12,6 +12,21 @@ import { AStockCell, AStockPrice, AStockTag, CompactLimitPriceDisplay } from "@/
 import { AStockCodeUtil } from "@/lib/data-sources/astock";
 import { cn } from "@/lib/utils";
 
+/** 轮询间隔（毫秒） */
+const PRICE_POLLING_INTERVAL = 5000;
+
+/** A股换手率阈值 - 高 */
+const TURNOVER_RATE_HIGH_THRESHOLD = 10;
+
+/** A股换手率阈值 - 中 */
+const TURNOVER_RATE_MEDIUM_THRESHOLD = 5;
+
+/** A股成交量单位 - 万 */
+const VOLUME_UNIT_WAN = 10000;
+
+/** A股成交量单位 - 亿 */
+const VOLUME_UNIT_YI = 100000000;
+
 /** 排序字段类型 */
 type SortField = 'changePercent' | 'turnoverRate' | 'volume' | 'price' | 'name';
 
@@ -19,7 +34,7 @@ type SortField = 'changePercent' | 'turnoverRate' | 'volume' | 'price' | 'name';
 type SortDirection = 'asc' | 'desc';
 
 /** 观察列表数据类型 */
-interface WatchlistStock {
+export interface WatchlistStock {
     symbol: string;
     price: number;
     change: number;
@@ -35,8 +50,18 @@ interface WatchlistStock {
     limitStatus?: 'limit_up' | 'limit_down' | 'normal';
 }
 
+/** 输入数据类型 */
+export type WatchlistStockInput = Partial<WatchlistStock> & {
+    symbol: string;
+    price?: number;
+    change?: number;
+    changePercent?: number;
+    currency?: string;
+    name?: string;
+};
+
 interface WatchlistTableProps {
-    data: any[];
+    data: WatchlistStockInput[];
     userId: string;
     onRefresh?: () => void;
     /** 是否使用 A 股模式（默认 false） */
@@ -47,16 +72,22 @@ export default function WatchlistTable({ data, userId, onRefresh, useAStockMode 
     const [stocks, setStocks] = useState<WatchlistStock[]>([]);
     const [sortField, setSortField] = useState<SortField>('changePercent');
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+    const stocksRef = useRef<WatchlistStock[]>(stocks);
+
+    // 更新 ref
+    useEffect(() => {
+        stocksRef.current = stocks;
+    }, [stocks]);
 
     // 初始化数据
     useEffect(() => {
-        const mappedData: WatchlistStock[] = data.map((item: any) => ({
+        const mappedData: WatchlistStock[] = data.map((item: WatchlistStockInput) => ({
             symbol: item.symbol,
-            price: item.price || 0,
-            change: item.change || 0,
-            changePercent: item.changePercent || 0,
-            currency: item.currency || 'USD',
-            name: item.name || item.symbol,
+            price: item.price ?? 0,
+            change: item.change ?? 0,
+            changePercent: item.changePercent ?? 0,
+            currency: item.currency ?? 'USD',
+            name: item.name ?? item.symbol,
             logo: item.logo,
             marketCap: item.marketCap,
             peRatio: item.peRatio,
@@ -69,11 +100,12 @@ export default function WatchlistTable({ data, userId, onRefresh, useAStockMode 
 
     // 价格轮询
     useEffect(() => {
-        if (!stocks || stocks.length === 0) return;
+        if (stocks.length === 0) return;
 
-        const interval = setInterval(async () => {
+        // 使用 ref 存储 stocks 引用，避免依赖项变化导致 interval 重新创建
+        const pollPrices = async () => {
             try {
-                const symbols = stocks.map(s => s.symbol);
+                const symbols = stocksRef.current.map(s => s.symbol);
                 if (symbols.length === 0) return;
 
                 const { getWatchlistData } = await import('@/lib/actions/finnhub.actions');
@@ -81,15 +113,15 @@ export default function WatchlistTable({ data, userId, onRefresh, useAStockMode 
 
                 if (updatedData && updatedData.length > 0) {
                     setStocks(current => {
-                        const map = new Map(updatedData.map((item: any) => [item.symbol, item]));
+                        const map = new Map(updatedData.map((item: WatchlistStockInput) => [item.symbol, item]));
                         return current.map(existing => {
                             const fresh = map.get(existing.symbol);
                             if (fresh) {
                                 return {
                                     ...existing,
-                                    price: fresh.price,
-                                    change: fresh.change,
-                                    changePercent: fresh.changePercent,
+                                    price: fresh.price ?? existing.price,
+                                    change: fresh.change ?? existing.change,
+                                    changePercent: fresh.changePercent ?? existing.changePercent,
                                 };
                             }
                             return existing;
@@ -99,10 +131,11 @@ export default function WatchlistTable({ data, userId, onRefresh, useAStockMode 
             } catch (err) {
                 console.error("Failed to poll watchlist prices", err);
             }
-        }, 5000);
+        };
 
+        const interval = setInterval(pollPrices, PRICE_POLLING_INTERVAL);
         return () => clearInterval(interval);
-    }, [stocks]);
+    }, [stocks.length]); // 仅依赖数组长度，避免每次价格更新都重新创建 interval
 
     // 排序后的数据
     const sortedStocks = useMemo(() => {
@@ -180,35 +213,35 @@ export default function WatchlistTable({ data, userId, onRefresh, useAStockMode 
     );
 
     // 格式化成交量（A股常用手/万手）
-    const formatVolume = (volume?: number): string => {
+    const formatVolume = useCallback((volume?: number): string => {
         if (!volume || volume === 0) return '--';
-        if (volume >= 100000000) {
-            return (volume / 100000000).toFixed(2) + '亿';
+        if (volume >= VOLUME_UNIT_YI) {
+            return (volume / VOLUME_UNIT_YI).toFixed(2) + '亿';
         }
-        if (volume >= 10000) {
-            return (volume / 10000).toFixed(2) + '万';
+        if (volume >= VOLUME_UNIT_WAN) {
+            return (volume / VOLUME_UNIT_WAN).toFixed(2) + '万';
         }
         return volume.toString();
-    };
+    }, []);
 
     // 格式化换手率
-    const formatTurnoverRate = (rate?: number): string => {
+    const formatTurnoverRate = useCallback((rate?: number): string => {
         if (rate === undefined || rate === null || rate === 0) return '--';
         return rate.toFixed(2) + '%';
-    };
+    }, []);
 
     // 判断是否为 A 股
-    const isAStock = (symbol: string): boolean => {
+    const isAStock = useCallback((symbol: string): boolean => {
         return AStockCodeUtil.isAStock(symbol);
-    };
+    }, []);
 
     // 获取交易所代码
-    const getExchange = (symbol: string): 'SH' | 'SZ' | 'BJ' => {
+    const getExchange = useCallback((symbol: string): 'SH' | 'SZ' | 'BJ' => {
         return AStockCodeUtil.getExchange(symbol) as 'SH' | 'SZ' | 'BJ' || 'SH';
-    };
+    }, []);
 
     // 判断涨跌停状态（使用正确的涨跌停阈值）
-    const getLimitStatus = (stock: WatchlistStock): 'limit_up' | 'limit_down' | 'normal' => {
+    const getLimitStatus = useCallback((stock: WatchlistStock): 'limit_up' | 'limit_down' | 'normal' => {
         if (stock.limitStatus) return stock.limitStatus;
 
         // 获取该股票的涨跌停限制比例
@@ -222,7 +255,7 @@ export default function WatchlistTable({ data, userId, onRefresh, useAStockMode 
         if (changePct >= limitPct - tolerance) return 'limit_up';
         if (changePct <= -limitPct + tolerance) return 'limit_down';
         return 'normal';
-    };
+    }, []);
 
     if (!sortedStocks || sortedStocks.length === 0) {
         return (
@@ -342,8 +375,8 @@ export default function WatchlistTable({ data, userId, onRefresh, useAStockMode 
                                         <td className="px-4 py-3">
                                             <span className={cn(
                                                 "text-sm",
-                                                (stock.turnoverRate || 0) > 10 ? "text-orange-400" :
-                                                (stock.turnoverRate || 0) > 5 ? "text-yellow-400" :
+                                                (stock.turnoverRate || 0) > TURNOVER_RATE_HIGH_THRESHOLD ? "text-orange-400" :
+                                                (stock.turnoverRate || 0) > TURNOVER_RATE_MEDIUM_THRESHOLD ? "text-yellow-400" :
                                                 "text-gray-400"
                                             )}>
                                                 {formatTurnoverRate(stock.turnoverRate)}
