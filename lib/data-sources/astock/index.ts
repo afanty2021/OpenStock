@@ -103,5 +103,12 @@ export {
   type StockScreenerConfig,
 } from './stock-screener';
 
+// 导出回测引擎
+export {
+  BacktestEngine,
+  getBacktestEngine,
+  type BacktestEngineConfig,
+} from './backtest-engine';
+
 // 导出类型定义（备用）
 export * from './types';
