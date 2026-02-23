@@ -8,4 +8,5 @@
 export { AStockCell } from './AStockCell';
 export { AStockPrice } from './AStockPrice';
 export { AStockTag } from './AStockTag';
-export { LimitPriceDisplay } from './LimitPriceDisplay';
+export { LimitPriceDisplay, CompactLimitPriceDisplay } from './LimitPriceDisplay';
+export { StockDetailHeader, StockDetailHeaderSkeleton } from './StockDetailHeader';

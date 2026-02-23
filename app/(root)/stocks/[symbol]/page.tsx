@@ -16,9 +16,11 @@ import {
 import { auth } from '@/lib/better-auth/auth';
 import { headers } from 'next/headers';
 import { isStockInWatchlist } from '@/lib/actions/watchlist.actions';
+import { getStockDetail } from '@/lib/actions/stock-detail.actions';
 import { formatSymbolForTradingView } from '@/lib/utils';
 import { AStockCodeUtil } from '@/lib/data-sources/astock';
 import { Suspense } from 'react';
+import { StockDetailHeader, StockDetailHeaderSkeleton } from '@/components/astock';
 
 export default async function StockDetails({ params }: { params: Promise<{ symbol: string }> }) {
     const { symbol } = await params;
@@ -34,15 +36,33 @@ export default async function StockDetails({ params }: { params: Promise<{ symbo
     const userId = session?.user?.id;
     const isInWatchlist = userId ? await isStockInWatchlist(userId, symbol) : false;
 
+    // 获取股票详情数据 (仅 A 股)
+    const stockDetailPromise = isAStock ? getStockDetail(symbol) : null;
+
     return (
         <div className="flex min-h-screen p-4 md:p-6 lg:p-8">
             <section className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
                 {/* Left column */}
                 <div className="flex flex-col gap-6">
+                    {/* 股票详情头部 - A 股显示 */}
+                    {isAStock && stockDetailPromise ? (
+                        <Suspense fallback={<StockDetailHeaderSkeleton size="lg" showLimitPrice={true} />}>
+                            <StockDetailHeaderWrapper detailPromise={stockDetailPromise} />
+                        </Suspense>
+                    ) : (
+                        <TradingViewWidget
+                            scriptUrl={`${scriptUrl}symbol-info.js`}
+                            config={SYMBOL_INFO_WIDGET_CONFIG(tvSymbol)}
+                            height={170}
+                        />
+                    )}
+
                     <TradingViewWidget
-                        scriptUrl={`${scriptUrl}symbol-info.js`}
-                        config={SYMBOL_INFO_WIDGET_CONFIG(tvSymbol)}
-                        height={170}
+                        scriptUrl={`${scriptUrl}advanced-chart.js`}
+                        config={CANDLE_CHART_WIDGET_CONFIG(tvSymbol)}
+                        className="custom-chart"
+                        height={600}
+                        allowExpand={true}
                     />
 
                     <TradingViewWidget
@@ -303,5 +323,37 @@ function MarginPanelSkeleton() {
                 <div className="h-2 w-48 mx-auto bg-gray-700 rounded"></div>
             </div>
         </div>
+    );
+}
+
+/**
+ * 股票详情头部包装组件
+ * 用于流式加载股票详情数据
+ */
+async function StockDetailHeaderWrapper({
+    detailPromise,
+}: {
+    detailPromise: ReturnType<typeof getStockDetail>;
+}) {
+    const detail = await detailPromise;
+
+    if (!detail.success || !detail.basic) {
+        return null;
+    }
+
+    return (
+        <StockDetailHeader
+            symbol={detail.basic.symbol}
+            name={detail.basic.name}
+            price={detail.quote?.price}
+            prevClose={detail.quote?.prevClose}
+            change={detail.quote?.change}
+            changePercent={detail.quote?.changePercent}
+            industry={detail.basic.industry}
+            industrySecond={detail.basic.industrySecond}
+            industryThird={detail.basic.industryThird}
+            size="lg"
+            showLimitPrice={true}
+        />
     );
 }

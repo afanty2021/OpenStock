@@ -288,6 +288,19 @@ export interface MarginDetailOptions {
 }
 
 /**
+ * 股票所属行业信息
+ *
+ * 用于展示股票所属板块
+ */
+export interface StockIndustry {
+  tsCode: string;          // 股票代码
+  name: string;            // 股票名称
+  industry: string;        // 所属行业（申万一级行业）
+  industrySecond: string;  // 申万二级行业
+  industryThird: string;   // 申万三级行业
+}
+
+/**
  * 数据转换工具函数
  * 将 Tushare 的数组格式转换为对象数组
  */
@@ -1347,5 +1360,70 @@ export class TushareSource extends BaseDataSource {
     }
 
     return data;
+  }
+
+  /**
+   * 获取股票所属行业
+   *
+   * 使用 Tushare stock_industry 接口获取股票所属板块信息
+   *
+   * @param symbol - 股票代码 (如 600519.SH)
+   * @returns 股票所属行业信息
+   *
+   * @example
+   * ```ts
+   * const tushare = new TushareSource();
+   * const industry = await tushare.getStockIndustry('600519.SH');
+   * console.log(industry.industry); // '白酒'
+   * ```
+   */
+  async getStockIndustry(symbol: string): Promise<StockIndustry | null> {
+    const tsCode = StockCodeValidator.toTushareCode(symbol);
+
+    try {
+      const data = await this.fetchWithRetry(async () => {
+        if (!this.token) {
+          throw new Error('Tushare API token is not configured');
+        }
+
+        const response = await fetch(this.apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            api_name: 'stock_industry',
+            token: this.token,
+            params: {
+              ts_code: tsCode,
+            },
+            fields: 'ts_code,name,industry,industry_second,industry_third'
+          })
+        });
+
+        const result: TushareResponse = await response.json();
+
+        if (result.code !== 0) {
+          const originalError = result.msg || 'Unknown error';
+          throw new Error(`Tushare API error (code: ${result.code}): ${originalError}`);
+        }
+
+        return transformTushareData<any>(result);
+      });
+
+      if (!data || data.length === 0) {
+        return null;
+      }
+
+      const item = data[0];
+      return {
+        tsCode: item.ts_code || tsCode,
+        name: item.name || '',
+        industry: item.industry || '',
+        industrySecond: item.industry_second || '',
+        industryThird: item.industry_third || '',
+      };
+    } catch (error) {
+      console.error(`Failed to get stock industry for ${symbol}:`, error);
+      return null;
+    }
   }
 }
