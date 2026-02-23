@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { TrendingUp, TrendingDown, AlertCircle, RefreshCw } from "lucide-react";
 import { getTopListData, type TopListDataResult } from "@/lib/actions/toplist.actions";
 import { formatWanAmount } from "@/lib/utils";
+import type { TopListItem } from "@/lib/data-sources/astock/top-list-viewer";
 
 interface TopListPanelProps {
   symbol?: string;
@@ -23,34 +24,8 @@ export default function TopListPanel({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchData() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const result: TopListDataResult = await getTopListData(symbol, limit);
-
-        if (result.success) {
-          setTopList(result.data);
-          // 如果有数据但为空，不显示错误
-          if (result.data.length === 0) {
-            setError(null);
-          }
-        } else {
-          // 只有在 API 错误时才显示错误信息
-          setError(result.error || "Failed to load top list data");
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load top list data");
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchData();
-  }, [symbol, limit]);
-
-  const handleRefresh = async () => {
+  // 提取公共数据获取逻辑，避免重复
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -58,16 +33,30 @@ export default function TopListPanel({
 
       if (result.success) {
         setTopList(result.data);
+        // 如果有数据但为空，不显示错误
         if (result.data.length === 0) {
           setError(null);
         }
       } else {
+        // 只有在 API 错误时才显示错误信息
         setError(result.error || "Failed to load top list data");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load top list data");
     } finally {
       setIsLoading(false);
+    }
+  }, [symbol, limit]);
+
+  // 初始加载和依赖变化时获取数据
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // 刷新按钮处理函数（已内置防抖，因为isLoading为true时按钮禁用）
+  const handleRefresh = () => {
+    if (!isLoading) {
+      fetchData();
     }
   };
 
@@ -82,8 +71,9 @@ export default function TopListPanel({
         <button
           onClick={handleRefresh}
           disabled={isLoading}
-          className="text-gray-400 hover:text-white transition-colors p-1 rounded hover:bg-white/10 disabled:opacity-50"
-          title="刷新数据"
+          className="text-gray-400 hover:text-white transition-colors p-1 rounded hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+          title={isLoading ? "加载中..." : "刷新数据"}
+          aria-label={isLoading ? "正在加载" : "刷新数据"}
         >
           <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
         </button>
