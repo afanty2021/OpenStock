@@ -35,7 +35,8 @@ components/
 │   ├── WatchlistStockChip.tsx  # 股票标签芯片
 │   ├── WatchlistTable.tsx      # 观察列表表格
 │   ├── TopListPanel.tsx        # 龙虎榜面板
-│   └── MoneyFlowCard.tsx       # 资金流向卡片
+│   ├── MoneyFlowCard.tsx       # 资金流向卡片
+│   └── MarginPanel.tsx         # 融资融券面板
 ├── DonatePopup.tsx        # 捐赠弹窗
 ├── Footer.tsx             # 页脚
 ├── Header.tsx             # 页头导航
@@ -177,6 +178,21 @@ import { Dialog } from "@/components/ui/dialog";
   - 大单交易情况展示（超大单、大单、中单、散户）
   - 5日趋势图可视化（条形图）
   - 支持刷新数据
+  - 响应式设计
+  - 错误处理和加载状态
+
+### MarginPanel
+- **功能**: 展示股票融资融券信息
+- **特性**:
+  - 显示融资余额和融券余额（万元）
+  - 显示融资买入/偿还额
+  - 显示融券卖出/偿还量（手）
+  - 多空情绪指示器（看多/看空/中性）
+  - 融资余额趋势图（5日）
+  - 变化百分比展示
+  - A股颜色约定（红涨绿跌）
+  - 支持刷新数据
+  - 缓存数据标识
   - 响应式设计
   - 错误处理和加载状态
 

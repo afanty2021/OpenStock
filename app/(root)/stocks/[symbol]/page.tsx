@@ -2,6 +2,7 @@ import TradingViewWidget from "@/components/TradingViewWidget";
 import WatchlistButton from "@/components/WatchlistButton";
 import TopListPanel from "@/components/watchlist/TopListPanel";
 import MoneyFlowCard from "@/components/watchlist/MoneyFlowCard";
+import MarginPanel from "@/components/watchlist/MarginPanel";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
     SYMBOL_INFO_WIDGET_CONFIG,
@@ -96,6 +97,19 @@ export default async function StockDetails({ params }: { params: Promise<{ symbo
                         <ErrorBoundary>
                             <Suspense fallback={<MoneyFlowCardSkeleton />}>
                                 <MoneyFlowCard
+                                    symbol={AStockCodeUtil.toTushareCode(symbol)}
+                                    showTrend={true}
+                                />
+                            </Suspense>
+                        </ErrorBoundary>
+                    )}
+
+                    {/* 融资融券信息 - 仅 A 股显示 */}
+                    {/* 融资融券是 A 股市场特有的信用交易机制，展示融资余额、融券余额和多空情绪 */}
+                    {isAStock && (
+                        <ErrorBoundary>
+                            <Suspense fallback={<MarginPanelSkeleton />}>
+                                <MarginPanel
                                     symbol={AStockCodeUtil.toTushareCode(symbol)}
                                     showTrend={true}
                                 />
@@ -201,6 +215,92 @@ function MoneyFlowCardSkeleton() {
                         ))}
                     </div>
                 </div>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * MarginPanel 加载骨架屏
+ * 在融资融券数据加载时显示占位内容，提升用户体验
+ */
+function MarginPanelSkeleton() {
+    return (
+        <div className="bg-gray-900/30 rounded-lg border border-gray-800 p-4 animate-pulse">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+                <div className="h-6 w-32 bg-gray-700 rounded"></div>
+                <div className="h-6 w-6 bg-gray-700 rounded"></div>
+            </div>
+
+            {/* Balance cards */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+                {/* 融资余额卡片 */}
+                <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700">
+                    <div className="h-3 w-20 bg-gray-700 rounded mb-3"></div>
+                    <div className="h-8 w-28 bg-gray-700 rounded mb-4"></div>
+                    {/* 分项数据 */}
+                    <div className="space-y-2 pt-3 border-t border-gray-700">
+                        <div className="h-2 w-24 bg-gray-700 rounded"></div>
+                        <div className="h-2 w-24 bg-gray-700 rounded"></div>
+                    </div>
+                </div>
+
+                {/* 融券余额卡片 */}
+                <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700">
+                    <div className="h-3 w-20 bg-gray-700 rounded mb-3"></div>
+                    <div className="h-8 w-28 bg-gray-700 rounded mb-4"></div>
+                    {/* 分项数据 */}
+                    <div className="space-y-2 pt-3 border-t border-gray-700">
+                        <div className="h-2 w-24 bg-gray-700 rounded"></div>
+                        <div className="h-2 w-24 bg-gray-700 rounded"></div>
+                    </div>
+                </div>
+            </div>
+
+            {/* 多空情绪指示器 */}
+            <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700 mb-4">
+                <div className="flex items-center space-x-3 mb-4">
+                    <div className="h-10 w-10 bg-gray-700 rounded-full"></div>
+                    <div className="space-y-2">
+                        <div className="h-4 w-24 bg-gray-700 rounded"></div>
+                        <div className="h-3 w-32 bg-gray-700 rounded"></div>
+                    </div>
+                </div>
+                {/* 变化统计 */}
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-700">
+                    <div className="space-y-1">
+                        <div className="h-2 w-20 bg-gray-700 rounded"></div>
+                        <div className="h-4 w-24 bg-gray-700 rounded"></div>
+                    </div>
+                    <div className="space-y-1">
+                        <div className="h-2 w-20 bg-gray-700 rounded"></div>
+                        <div className="h-4 w-24 bg-gray-700 rounded"></div>
+                    </div>
+                </div>
+            </div>
+
+            {/* 趋势图 */}
+            <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="h-4 w-24 bg-gray-700 rounded"></div>
+                    <div className="h-3 w-16 bg-gray-700 rounded"></div>
+                </div>
+                {/* 趋势条形图骨架 */}
+                <div className="space-y-2">
+                    {[...Array(5)].map((_, i) => (
+                        <div key={i} className="flex items-center space-x-2">
+                            <div className="h-2 w-16 bg-gray-700 rounded"></div>
+                            <div className="flex-1 h-3 bg-gray-700 rounded-full"></div>
+                            <div className="h-2 w-16 bg-gray-700 rounded"></div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Footer */}
+            <div className="mt-4 pt-3 border-t border-gray-800">
+                <div className="h-2 w-48 mx-auto bg-gray-700 rounded"></div>
             </div>
         </div>
     );

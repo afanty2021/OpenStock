@@ -48,3 +48,21 @@ export {
   type LargeOrder,
   type MoneyFlowTrendAnalysis,
 } from './money-flow-monitor';
+
+// 导出板块追踪器
+export {
+  SectorTracker,
+  type SectorRankingItem,
+  type SectorRankingResult,
+  type MoneyFlowAnalysis,
+  type SectorType,
+} from './sector-tracker';
+
+// 导出融资融券数据类
+export {
+  MarginTrading,
+  type MarginData,
+  type MarginResult,
+  type MarginTrendResult,
+  type SentimentAnalysisResult,
+} from './margin-trading';

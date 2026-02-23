@@ -163,6 +163,98 @@ export interface DailyBasicData {
 }
 
 /**
+ * 板块交易数据
+ *
+ * Tushare block_trade 接口返回的板块交易数据
+ * 包含板块指数的涨跌幅、成交额和资金流向数据
+ */
+export interface BlockTradeData {
+  ts_code: string;          // 板块代码
+  trade_date: string;       // 交易日期
+  name: string;             // 板块名称
+  close: number;            // 收盘点位
+  pct_chg: number;          // 涨跌幅(%)
+  amount: number;           // 成交额(万元)
+  net_mf_amount: number;    // 主力净流入(万元)
+}
+
+/**
+ * 板块交易查询选项
+ */
+export interface BlockTradeOptions {
+  /** 板块代码（可选） */
+  tsCode?: string;
+
+  /** 交易日期（格式：YYYYMMDD），默认为最新交易日 */
+  tradeDate?: string;
+
+  /** 返回条数限制 */
+  limit?: number;
+}
+
+/**
+ * 概念板块成分股
+ */
+export interface ConceptDetailData {
+  ts_code: string;          // 股票代码
+  name: string;             // 股票名称
+  in_date: string;          // 纳入日期
+  out_date?: string;        // 剔除日期（可选）
+}
+
+/**
+ * 行业分类数据
+ */
+export interface IndexClassifyData {
+  index_code: string;       // 指数代码
+  con_code: string;         // 成分股代码
+  in_date: string;          // 纳入日期
+  out_date?: string;        // 剔除日期（可选）
+  new_ratio?: number;       // 最新权重（可选）
+}
+
+/**
+ * 融资融券明细数据
+ *
+ * Tushare margin_detail 接口返回的融资融券交易数据
+ * 包含融资余额、融资买入额、融券余额、融券卖出量等字段
+ */
+export interface MarginDetailData {
+  ts_code: string;          // 股票代码
+  trade_date: string;       // 交易日期
+
+  // 融资相关
+  rz_ratio: number;         // 融资余额(万元) - 投资者借钱买入股票的总金额
+  rz_che: number;           // 融资买入额(万元) - 当日新增融资买入金额
+  rz_ch: number;            // 融资偿还额(万元) - 当日偿还融资金额
+
+  // 融券相关
+  rq_ratio: number;         // 融券余额(万元) - 投资者借股票卖出的总市值
+  rq_che: number;           // 融券卖出量(手) - 当日新增融券卖出量
+  rq_ch: number;            // 融券偿还量(手) - 当日偿还融券数量
+
+  // 比率指标
+  rz_rq_ratio: number;      // 融资融券余额比 = 融资余额 / 融券余额
+}
+
+/**
+ * 融资融券查询选项
+ */
+export interface MarginDetailOptions {
+  /** 股票代码（如 600519.SH 或 600519） */
+  tsCode: string;
+
+  /** 开始日期（格式：YYYYMMDD） */
+  startDate?: string;
+
+  /** 结束日期（格式：YYYYMMDD） */
+  endDate?: string;
+
+  /** 返回条数限制 */
+  limit?: number;
+}
+
+/**
  * 数据转换工具函数
  * 将 Tushare 的数组格式转换为对象数组
  */
@@ -778,6 +870,318 @@ export class TushareSource extends BaseDataSource {
       // 如果没有指定日期，返回最新的一条记录
       return date ? records[0] : records[0];
     });
+
+    return data;
+  }
+
+  /**
+   * 获取板块交易数据
+   * 接口：block_trade
+   *
+   * 支持行业板块和概念板块的查询
+   *
+   * @param options 查询选项
+   * @param options.tsCode 板块代码（如 801010.SH 代表申万一级行业）
+   * @param options.tradeDate 交易日期（格式：YYYYMMDD），默认为最新交易日
+   * @param options.limit 返回条数限制
+   * @returns 板块交易数据数组
+   *
+   * @example
+   * ```ts
+   * // 获取当日所有板块交易数据
+   * const today = await tushare.getBlockTrade();
+   *
+   * // 获取指定日期板块交易数据
+   * const historical = await tushare.getBlockTrade({ tradeDate: '20260220' });
+   *
+   * // 获取指定板块交易数据
+   * const sector = await tushare.getBlockTrade({ tsCode: '801010.SH' });
+   *
+   * // 获取当日TOP10板块
+   * const top10 = await tushare.getBlockTrade({ limit: 10 });
+   * ```
+   */
+  async getBlockTrade(options?: BlockTradeOptions): Promise<BlockTradeData[]> {
+    // 如果没有指定日期，使用最新交易日
+    const queryDate = options?.tradeDate || this.getLatestTradeDate();
+
+    // 使用 TradingCalendar 验证日期格式和交易日有效性
+    if (!this.isValidTradeDate(queryDate)) {
+      return [];
+    }
+
+    // 转换股票代码格式（如果提供）
+    const queryTsCode = options?.tsCode ? StockCodeValidator.toTushareCode(options.tsCode) : undefined;
+
+    // fetchWithRetry 会在全部重试失败后抛出原始错误
+    // 不需要检查 null，直接使用返回值
+    const data = await this.fetchWithRetry(async () => {
+      if (!this.token) {
+        throw new Error('Tushare API token is not configured');
+      }
+
+      // 构建请求参数
+      const params: Record<string, string> = { trade_date: queryDate };
+      if (queryTsCode) {
+        params.ts_code = queryTsCode;
+      }
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_name: 'block_trade',
+          token: this.token,
+          params,
+          fields: 'ts_code,trade_date,name,close,pct_chg,amount,net_mf_amount'
+        })
+      });
+
+      const result: TushareResponse = await response.json();
+
+      if (result.code !== 0) {
+        // 保留原始错误信息，便于调试和问题追踪
+        const originalError = result.msg || 'Unknown error';
+        throw new Error(`Tushare API error (code: ${result.code}): ${originalError}`);
+      }
+
+      return transformTushareData<BlockTradeData>(result);
+    });
+
+    // 应用 limit 限制
+    // limit > 0: 返回前 N 条记录
+    // limit <= 0 或 undefined: 返回所有记录（无限制）
+    const limit = options?.limit;
+    if (limit && limit > 0 && data.length > limit) {
+      return data.slice(0, limit);
+    }
+
+    return data;
+  }
+
+  /**
+   * 获取概念板块成分股
+   * 接口：concept_detail
+   *
+   * @param conceptId 概念板块代码（如 TS001 代表新能源汽车概念）
+   * @returns 成分股代码数组
+   *
+   * @example
+   * ```ts
+   * // 获取新能源汽车概念成分股
+   * const stocks = await tushare.getConceptDetail('TS001');
+   * console.log(stocks); // ['600519.SH', '000001.SZ', ...]
+   * ```
+   */
+  async getConceptDetail(conceptId: string): Promise<string[]> {
+    // fetchWithRetry 会在全部重试失败后抛出原始错误
+    // 不需要检查 null，直接使用返回值
+    const data = await this.fetchWithRetry(async () => {
+      if (!this.token) {
+        throw new Error('Tushare API token is not configured');
+      }
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_name: 'concept_detail',
+          token: this.token,
+          params: { id: conceptId },
+          fields: 'ts_code,name,in_date,out_date'
+        })
+      });
+
+      const result: TushareResponse = await response.json();
+
+      if (result.code !== 0) {
+        // 保留原始错误信息，便于调试和问题追踪
+        const originalError = result.msg || 'Unknown error';
+        throw new Error(`Tushare API error (code: ${result.code}): ${originalError}`);
+      }
+
+      return transformTushareData<ConceptDetailData>(result);
+    });
+
+    // 过滤出未剔除的股票（out_date 为空），并返回股票代码数组
+    const activeStocks = data
+      .filter(item => !item.out_date)
+      .map(item => item.ts_code);
+
+    return activeStocks;
+  }
+
+  /**
+   * 获取行业分类成分股
+   * 接口：index_classify
+   *
+   * @param indexCode 行业指数代码（如 801010.SH 代表申万一级行业-农林牧渔）
+   * @returns 成分股代码数组
+   *
+   * @example
+   * ```ts
+   * // 获取申万一级行业-农林牧渔成分股
+   * const stocks = await tushare.getIndexClassify('801010.SH');
+   * console.log(stocks); // ['600519.SH', '000001.SZ', ...]
+   * ```
+   */
+  async getIndexClassify(indexCode: string): Promise<string[]> {
+    // 转换股票代码格式
+    const queryIndexCode = StockCodeValidator.toTushareCode(indexCode);
+
+    // fetchWithRetry 会在全部重试失败后抛出原始错误
+    // 不需要检查 null，直接使用返回值
+    const data = await this.fetchWithRetry(async () => {
+      if (!this.token) {
+        throw new Error('Tushare API token is not configured');
+      }
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_name: 'index_classify',
+          token: this.token,
+          params: { index_code: queryIndexCode },
+          fields: 'index_code,con_code,in_date,out_date,new_ratio'
+        })
+      });
+
+      const result: TushareResponse = await response.json();
+
+      if (result.code !== 0) {
+        // 保留原始错误信息，便于调试和问题追踪
+        const originalError = result.msg || 'Unknown error';
+        throw new Error(`Tushare API error (code: ${result.code}): ${originalError}`);
+      }
+
+      return transformTushareData<IndexClassifyData>(result);
+    });
+
+    // 过滤出未剔除的股票（out_date 为空），并返回股票代码数组
+    const activeStocks = data
+      .filter(item => !item.out_date)
+      .map(item => item.con_code);
+
+    return activeStocks;
+  }
+
+  /**
+   * 获取融资融券明细数据
+   * 接口：margin_detail
+   *
+   * 支持单日查询、日期范围查询和批量查询
+   *
+   * @param options 查询选项
+   * @param options.tsCode 股票代码（如 600519.SH 或 600519）
+   * @param options.startDate 开始日期（格式：YYYYMMDD），默认为最新交易日
+   * @param options.endDate 结束日期（格式：YYYYMMDD），默认与 startDate 相同
+   * @param options.limit 返回条数限制
+   * @returns 融资融券明细数据数组
+   *
+   * @example
+   * ```ts
+   * // 获取当日融资融券数据
+   * const today = await tushare.getMarginDetail({ tsCode: '600519.SH' });
+   *
+   * // 获取指定日期融资融券数据
+   * const singleDay = await tushare.getMarginDetail({
+   *   tsCode: '600519.SH',
+   *   startDate: '20260220',
+   *   endDate: '20260220',
+   * });
+   *
+   * // 获取日期范围融资融券数据
+   * const range = await tushare.getMarginDetail({
+   *   tsCode: '600519.SH',
+   *   startDate: '20260201',
+   *   endDate: '20260220',
+   * });
+   *
+   * // 获取最近10天融资融券数据
+   * const recent10 = await tushare.getMarginDetail({
+   *   tsCode: '600519.SH',
+   *   limit: 10,
+   * });
+   * ```
+   */
+  async getMarginDetail(options: MarginDetailOptions): Promise<MarginDetailData[]> {
+    const tsCode = StockCodeValidator.toTushareCode(options.tsCode);
+    const startDate = options.startDate || this.getLatestTradeDate();
+    const endDate = options.endDate || startDate;
+
+    // 验证日期格式
+    if (!this.isValidTradeDate(startDate)) {
+      throw new Error(`Invalid start date: ${startDate}. Must be a valid trading date in YYYYMMDD format.`);
+    }
+    if (endDate && !this.isValidTradeDate(endDate)) {
+      throw new Error(`Invalid end date: ${endDate}. Must be a valid trading date in YYYYMMDD format.`);
+    }
+
+    // fetchWithRetry 会在全部重试失败后抛出原始错误
+    // 不需要检查 null，直接使用返回值
+    const data = await this.fetchWithRetry(async () => {
+      if (!this.token) {
+        throw new Error('Tushare API token is not configured');
+      }
+
+      // 构建请求参数
+      const params: Record<string, string> = {
+        ts_code: tsCode,
+        start_date: startDate,
+      };
+
+      if (endDate) {
+        params.end_date = endDate;
+      }
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_name: 'margin_detail',
+          token: this.token,
+          params,
+          fields: [
+            'ts_code',
+            'trade_date',
+            // 融资相关
+            'rz_ratio',   // 融资余额(万元)
+            'rz_che',     // 融资买入额(万元)
+            'rz_ch',      // 融资偿还额(万元)
+            // 融券相关
+            'rq_ratio',   // 融券余额(万元)
+            'rq_che',     // 融券卖出量(手)
+            'rq_ch',      // 融券偿还量(手)
+            // 比率指标
+            'rz_rq_ratio', // 融资融券余额比
+          ].join(','),
+        })
+      });
+
+      const result: TushareResponse = await response.json();
+
+      if (result.code !== 0) {
+        // 保留原始错误信息，便于调试和问题追踪
+        const originalError = result.msg || 'Unknown error';
+        throw new Error(`Tushare API error (code: ${result.code}): ${originalError}`);
+      }
+
+      const records = transformTushareData<MarginDetailData>(result);
+      if (records.length === 0) {
+        throw new Error('No margin detail data available');
+      }
+
+      return records;
+    });
+
+    // 应用 limit 限制
+    // limit > 0: 返回前 N 条记录
+    // limit <= 0 或 undefined: 返回所有记录（无限制）
+    const limit = options.limit;
+    if (limit && limit > 0 && data.length > limit) {
+      return data.slice(0, limit);
+    }
 
     return data;
   }

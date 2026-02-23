@@ -8,8 +8,9 @@
 // 在导入模块前设置环境变量
 process.env.TUSHARE_API_TOKEN = 'test_token';
 
-import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TushareSource } from '../tushare';
+import type { BlockTradeData, ConceptDetailData, IndexClassifyData, MarginDetailData } from '../tushare';
 
 // Mock fetch 函数
 const mockFetch = vi.fn();
@@ -1033,6 +1034,835 @@ describe('TushareSource', () => {
       });
 
       await expect(tushare.getDailyBasic('600519.SH')).rejects.toThrow();
+    });
+  });
+
+  describe('getBlockTrade - 板块交易数据', () => {
+    test('应返回当日板块交易数据（无参数调用）', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'name', 'close', 'pct_chg', 'amount', 'net_mf_amount'],
+          items: [
+            ['801010.SH', '20260220', '农林牧渔', 1234.56, 2.5, 123456.78, 5678.90],
+            ['801020.SH', '20260220', '采掘', 2345.67, -1.2, 234567.89, -3456.78],
+          ],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getBlockTrade();
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({
+        ts_code: '801010.SH',
+        trade_date: '20260220',
+        name: '农林牧渔',
+        close: 1234.56,
+        pct_chg: 2.5,
+        amount: 123456.78,
+        net_mf_amount: 5678.90,
+      });
+
+      // 验证 API 调用参数
+      const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(callArgs.api_name).toBe('block_trade');
+      expect(callArgs.params.trade_date).toBeDefined();
+      expect(callArgs.params.trade_date).toMatch(/^\d{8}$/);
+    });
+
+    test('应处理空数据返回', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'name', 'close', 'pct_chg', 'amount', 'net_mf_amount'],
+          items: [],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getBlockTrade();
+
+      expect(result).toEqual([]);
+    });
+
+    test('应支持指定交易日期查询', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'name', 'close', 'pct_chg', 'amount', 'net_mf_amount'],
+          items: [['801010.SH', '20260220', '农林牧渔', 1234.56, 2.5, 123456.78, 5678.90]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getBlockTrade({ tradeDate: '20260220' });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].ts_code).toBe('801010.SH');
+
+      // 验证 API 调用参数
+      const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(callArgs.params.trade_date).toBe('20260220');
+    });
+
+    test('应支持按板块代码过滤', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'name', 'close', 'pct_chg', 'amount', 'net_mf_amount'],
+          items: [['801010.SH', '20260220', '农林牧渔', 1234.56, 2.5, 123456.78, 5678.90]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getBlockTrade({ tsCode: '801010.SH' });
+      expect(result).toHaveLength(1);
+
+      // 验证 API 调用参数
+      const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(callArgs.params.ts_code).toBe('801010.SH');
+    });
+
+    test('应支持同时指定日期和板块代码', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'name', 'close', 'pct_chg', 'amount', 'net_mf_amount'],
+          items: [['801010.SH', '20260220', '农林牧渔', 1234.56, 2.5, 123456.78, 5678.90]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getBlockTrade({
+        tsCode: '801010.SH',
+        tradeDate: '20260220',
+      });
+
+      expect(result).toHaveLength(1);
+
+      // 验证 API 调用参数
+      const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(callArgs.params.ts_code).toBe('801010.SH');
+      expect(callArgs.params.trade_date).toBe('20260220');
+    });
+
+    test('应支持限制返回条数', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'name', 'close', 'pct_chg', 'amount', 'net_mf_amount'],
+          items: [
+            ['801010.SH', '20260220', '农林牧渔', 1234.56, 2.5, 123456.78, 5678.90],
+            ['801020.SH', '20260220', '采掘', 2345.67, -1.2, 234567.89, -3456.78],
+            ['801030.SH', '20260220', '化工', 3456.78, 1.8, 345678.90, 2345.67],
+          ],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getBlockTrade({ limit: 2 });
+
+      expect(result).toHaveLength(2);
+      expect(result[0].ts_code).toBe('801010.SH');
+      expect(result[1].ts_code).toBe('801020.SH');
+    });
+
+    test('无效日期应返回空数组', async () => {
+      // 测试无效日期格式
+      const result1 = await tushare.getBlockTrade({ tradeDate: 'invalid' });
+      expect(result1).toEqual([]);
+
+      // 测试无效日期值
+      const result2 = await tushare.getBlockTrade({ tradeDate: '20261301' });
+      expect(result2).toEqual([]);
+
+      const result3 = await tushare.getBlockTrade({ tradeDate: '20260232' });
+      expect(result3).toEqual([]);
+
+      // 验证没有发起 API 请求
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    test('应拒绝非交易日（周末）', async () => {
+      // 2026年2月21日是周六
+      const result = await tushare.getBlockTrade({ tradeDate: '20260221' });
+      expect(result).toEqual([]);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    test('API 返回错误时应抛出异常', async () => {
+      const mockResponse = {
+        code: -1,
+        msg: 'Invalid API token',
+        data: null,
+      };
+
+      // 需要mock 3次因为重试机制会尝试3次
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await expect(tushare.getBlockTrade()).rejects.toThrow('Tushare API error (code: -1): Invalid API token');
+    });
+
+    test('应包含所有板块交易字段', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'trade_date', 'name', 'close', 'pct_chg', 'amount', 'net_mf_amount'],
+          items: [['801010.SH', '20260220', '农林牧渔', 1234.56, 2.5, 123456.78, 5678.90]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getBlockTrade();
+
+      expect(result[0]).toMatchObject({
+        ts_code: expect.any(String),
+        trade_date: expect.any(String),
+        name: expect.any(String),
+        close: expect.any(Number),
+        pct_chg: expect.any(Number),
+        amount: expect.any(Number),
+        net_mf_amount: expect.any(Number),
+      });
+    });
+  });
+
+  describe('getConceptDetail - 概念板块成分股', () => {
+    test('应获取概念板块成分股', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'name', 'in_date', 'out_date'],
+          items: [
+            ['600519.SH', '贵州茅台', '20200101', null],
+            ['000001.SZ', '平安银行', '20200101', null],
+            ['600000.SH', '浦发银行', '20200101', '20250101'], // 已剔除
+          ],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getConceptDetail('TS001');
+
+      expect(result).toHaveLength(2); // 应该排除已剔除的股票
+      expect(result).toContain('600519.SH');
+      expect(result).toContain('000001.SZ');
+      expect(result).not.toContain('600000.SH');
+    });
+
+    test('空数据应返回空数组', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'name', 'in_date', 'out_date'],
+          items: [],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getConceptDetail('TS001');
+
+      expect(result).toEqual([]);
+    });
+
+    test('API 返回错误时应抛出异常', async () => {
+      const mockResponse = {
+        code: -1,
+        msg: 'Invalid API token',
+        data: null,
+      };
+
+      // 需要mock 3次因为重试机制会尝试3次
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await expect(tushare.getConceptDetail('TS001')).rejects.toThrow('Tushare API error (code: -1): Invalid API token');
+    });
+
+    test('验证 API 调用参数', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['ts_code', 'name', 'in_date', 'out_date'],
+          items: [['600519.SH', '贵州茅台', '20200101', null]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await tushare.getConceptDetail('TS001');
+
+      const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(callArgs.api_name).toBe('concept_detail');
+      expect(callArgs.params.id).toBe('TS001');
+      expect(callArgs.fields).toBe('ts_code,name,in_date,out_date');
+    });
+  });
+
+  describe('getIndexClassify - 行业分类成分股', () => {
+    test('应获取行业分类成分股', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['index_code', 'con_code', 'in_date', 'out_date', 'new_ratio'],
+          items: [
+            ['801010.SH', '600519.SH', '20200101', null, 5.2],
+            ['801010.SH', '000001.SZ', '20200101', null, 3.8],
+            ['801010.SH', '600000.SH', '20200101', '20250101', null], // 已剔除
+          ],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getIndexClassify('801010.SH');
+
+      expect(result).toHaveLength(2); // 应该排除已剔除的股票
+      expect(result).toContain('600519.SH');
+      expect(result).toContain('000001.SZ');
+      expect(result).not.toContain('600000.SH');
+    });
+
+    test('应自动转换股票代码格式', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['index_code', 'con_code', 'in_date', 'out_date', 'new_ratio'],
+          items: [['801010.SH', '600519.SH', '20200101', null, 5.2]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await tushare.getIndexClassify('801010.SS'); // Finnhub 格式
+
+      const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(callArgs.params.index_code).toBe('801010.SH'); // Tushare 格式
+    });
+
+    test('空数据应返回空数组', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['index_code', 'con_code', 'in_date', 'out_date', 'new_ratio'],
+          items: [],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getIndexClassify('801010.SH');
+
+      expect(result).toEqual([]);
+    });
+
+    test('API 返回错误时应抛出异常', async () => {
+      const mockResponse = {
+        code: -1,
+        msg: 'Invalid API token',
+        data: null,
+      };
+
+      // 需要mock 3次因为重试机制会尝试3次
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await expect(tushare.getIndexClassify('801010.SH')).rejects.toThrow('Tushare API error (code: -1): Invalid API token');
+    });
+
+    test('验证 API 调用参数', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: ['index_code', 'con_code', 'in_date', 'out_date', 'new_ratio'],
+          items: [['801010.SH', '600519.SH', '20200101', null, 5.2]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await tushare.getIndexClassify('801010.SH');
+
+      const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(callArgs.api_name).toBe('index_classify');
+      expect(callArgs.params.index_code).toBe('801010.SH');
+      expect(callArgs.fields).toBe('index_code,con_code,in_date,out_date,new_ratio');
+    });
+  });
+
+  describe('getMarginDetail - 融资融券明细', () => {
+    test('应获取当日融资融券数据（单条记录）', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: [
+            'ts_code',
+            'trade_date',
+            'rz_ratio',
+            'rz_che',
+            'rz_ch',
+            'rq_ratio',
+            'rq_che',
+            'rq_ch',
+            'rz_rq_ratio',
+          ],
+          items: [['600519.SH', '20260223', 1234567.89, 12345.67, 10000.50, 23456.78, 100, 80, 52.67]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getMarginDetail({ tsCode: '600519.SH' });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        ts_code: '600519.SH',
+        trade_date: '20260223',
+        rz_ratio: 1234567.89,
+        rz_che: 12345.67,
+        rz_ch: 10000.50,
+        rq_ratio: 23456.78,
+        rq_che: 100,
+        rq_ch: 80,
+        rz_rq_ratio: 52.67,
+      });
+    });
+
+    test('应包含所有融资融券字段', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: [
+            'ts_code',
+            'trade_date',
+            'rz_ratio',
+            'rz_che',
+            'rz_ch',
+            'rq_ratio',
+            'rq_che',
+            'rq_ch',
+            'rz_rq_ratio',
+          ],
+          items: [['600519.SH', '20260223', 1234567.89, 12345.67, 10000.50, 23456.78, 100, 80, 52.67]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getMarginDetail({ tsCode: '600519.SH' });
+
+      expect(result[0]).toMatchObject({
+        ts_code: expect.any(String),
+        trade_date: expect.any(String),
+        rz_ratio: expect.any(Number),
+        rz_che: expect.any(Number),
+        rz_ch: expect.any(Number),
+        rq_ratio: expect.any(Number),
+        rq_che: expect.any(Number),
+        rq_ch: expect.any(Number),
+        rz_rq_ratio: expect.any(Number),
+      });
+    });
+
+    test('应支持日期范围查询', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: [
+            'ts_code',
+            'trade_date',
+            'rz_ratio',
+            'rz_che',
+            'rz_ch',
+            'rq_ratio',
+            'rq_che',
+            'rq_ch',
+            'rz_rq_ratio',
+          ],
+          items: [
+            ['600519.SH', '20260220', 1234567.89, 12345.67, 10000.50, 23456.78, 100, 80, 52.67],
+            ['600519.SH', '20260219', 1234000.00, 12000.00, 9800.00, 23000.00, 95, 75, 53.65],
+          ],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getMarginDetail({
+        tsCode: '600519.SH',
+        startDate: '20260219',
+        endDate: '20260220',
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result[0].trade_date).toBe('20260220');
+      expect(result[1].trade_date).toBe('20260219');
+    });
+
+    test('应限制返回条数', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: [
+            'ts_code',
+            'trade_date',
+            'rz_ratio',
+            'rz_che',
+            'rz_ch',
+            'rq_ratio',
+            'rq_che',
+            'rq_ch',
+            'rz_rq_ratio',
+          ],
+          items: [
+            ['600519.SH', '20260220', 1234567.89, 12345.67, 10000.50, 23456.78, 100, 80, 52.67],
+            ['600519.SH', '20260219', 1234000.00, 12000.00, 9800.00, 23000.00, 95, 75, 53.65],
+          ],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getMarginDetail({
+        tsCode: '600519.SH',
+        startDate: '20260219',
+        endDate: '20260220',
+        limit: 1,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].trade_date).toBe('20260220');
+    });
+
+    test('应正确转换 Finnhub 格式代码', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: [
+            'ts_code',
+            'trade_date',
+            'rz_ratio',
+            'rz_che',
+            'rz_ch',
+            'rq_ratio',
+            'rq_che',
+            'rq_ch',
+            'rz_rq_ratio',
+          ],
+          items: [['600519.SH', '20260223', 1234567.89, 12345.67, 10000.50, 23456.78, 100, 80, 52.67]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await tushare.getMarginDetail({ tsCode: '600519.SS' }); // Finnhub 格式
+
+      const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(callArgs.params.ts_code).toBe('600519.SH'); // Tushare 格式
+    });
+
+    test('应支持按 tsCode 过滤', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: [
+            'ts_code',
+            'trade_date',
+            'rz_ratio',
+            'rz_che',
+            'rz_ch',
+            'rq_ratio',
+            'rq_che',
+            'rq_ch',
+            'rz_rq_ratio',
+          ],
+          items: [['600519.SH', '20260223', 1234567.89, 12345.67, 10000.50, 23456.78, 100, 80, 52.67]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getMarginDetail({ tsCode: '600519.SH' });
+      expect(result).toHaveLength(1);
+
+      // 验证 API 调用参数
+      const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(callArgs.params.ts_code).toBe('600519.SH');
+    });
+
+    test('无效日期格式时应抛出异常', async () => {
+      await expect(
+        tushare.getMarginDetail({
+          tsCode: '600519.SH',
+          startDate: '2026-02-20', // 错误格式
+        })
+      ).rejects.toThrow('Invalid start date');
+    });
+
+    test('API 返回错误时应抛出异常', async () => {
+      const mockResponse = {
+        code: -1,
+        msg: 'Invalid API token',
+        data: null,
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await expect(
+        tushare.getMarginDetail({ tsCode: '600519.SH' })
+      ).rejects.toThrow('Tushare API error (code: -1): Invalid API token');
+    });
+
+    test('无数据时应抛出异常', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: [
+            'ts_code',
+            'trade_date',
+            'rz_ratio',
+            'rz_che',
+            'rz_ch',
+            'rq_ratio',
+            'rq_che',
+            'rq_ch',
+            'rz_rq_ratio',
+          ],
+          items: [],
+        },
+      };
+
+      // 需要 mock 3 次因为重试机制
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await expect(
+        tushare.getMarginDetail({ tsCode: '600519.SH' })
+      ).rejects.toThrow('No margin detail data available');
+    });
+
+    test('limit 为 0 或负数应返回所有结果', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: [
+            'ts_code',
+            'trade_date',
+            'rz_ratio',
+            'rz_che',
+            'rz_ch',
+            'rq_ratio',
+            'rq_che',
+            'rq_ch',
+            'rz_rq_ratio',
+          ],
+          items: [
+            ['600519.SH', '20260220', 1234567.89, 12345.67, 10000.50, 23456.78, 100, 80, 52.67],
+            ['600519.SH', '20260219', 1234000.00, 12000.00, 9800.00, 23000.00, 95, 75, 53.65],
+          ],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getMarginDetail({
+        tsCode: '600519.SH',
+        startDate: '20260219',
+        endDate: '20260220',
+        limit: 0,
+      });
+
+      expect(result).toHaveLength(2);
+    });
+
+    test('验证 API 调用参数', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: [
+            'ts_code',
+            'trade_date',
+            'rz_ratio',
+            'rz_che',
+            'rz_ch',
+            'rq_ratio',
+            'rq_che',
+            'rq_ch',
+            'rz_rq_ratio',
+          ],
+          items: [['600519.SH', '20260223', 1234567.89, 12345.67, 10000.50, 23456.78, 100, 80, 52.67]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      await tushare.getMarginDetail({
+        tsCode: '600519.SH',
+        startDate: '20260220',
+        endDate: '20260223',
+      });
+
+      const callArgs = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(callArgs.api_name).toBe('margin_detail');
+      expect(callArgs.params.ts_code).toBe('600519.SH');
+      expect(callArgs.params.start_date).toBe('20260220');
+      expect(callArgs.params.end_date).toBe('20260223');
+      expect(callArgs.fields).toContain('ts_code');
+      expect(callArgs.fields).toContain('trade_date');
+      expect(callArgs.fields).toContain('rz_ratio');
+      expect(callArgs.fields).toContain('rz_che');
+      expect(callArgs.fields).toContain('rz_ch');
+      expect(callArgs.fields).toContain('rq_ratio');
+      expect(callArgs.fields).toContain('rq_che');
+      expect(callArgs.fields).toContain('rq_ch');
+      expect(callArgs.fields).toContain('rz_rq_ratio');
+    });
+
+    test('应处理融资融券余额比为0的情况', async () => {
+      const mockResponse = {
+        code: 0,
+        msg: null,
+        data: {
+          fields: [
+            'ts_code',
+            'trade_date',
+            'rz_ratio',
+            'rz_che',
+            'rz_ch',
+            'rq_ratio',
+            'rq_che',
+            'rq_ch',
+            'rz_rq_ratio',
+          ],
+          items: [['600519.SH', '20260223', 1234567.89, 12345.67, 10000.50, 0, 0, 0, 0]],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        json: async () => mockResponse,
+      });
+
+      const result = await tushare.getMarginDetail({ tsCode: '600519.SH' });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].rq_ratio).toBe(0);
+      expect(result[0].rq_che).toBe(0);
+      expect(result[0].rq_ch).toBe(0);
+      expect(result[0].rz_rq_ratio).toBe(0);
     });
   });
 });

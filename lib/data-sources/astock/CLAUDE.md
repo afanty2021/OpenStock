@@ -12,10 +12,19 @@ lib/data-sources/astock/
 ├── code-util.ts              # 代码格式标准化工具
 ├── limit-detector.ts         # 涨跌停检测器
 ├── trading-calendar.ts       # 交易日历管理
+├── trading-aware-scheduler.ts # 交易时段感知调度器
+├── top-list-viewer.ts        # 龙虎榜查看器
+├── money-flow-monitor.ts     # 资金流向监控器
+├── sector-tracker.ts         # 板块追踪器
+├── margin-trading.ts         # 融资融券数据类
 └── __tests__/
     ├── code-util.test.ts     # 代码工具测试（72 个测试用例）
     ├── limit-detector.test.ts# 涨跌停检测测试（34 个测试用例）
-    └── trading-calendar.test.ts # 交易日历测试（83 个测试用例）
+    ├── trading-calendar.test.ts # 交易日历测试（83 个测试用例）
+    ├── top-list-viewer.test.ts # 龙虎榜查看器测试
+    ├── money-flow-monitor.test.ts # 资金流向监控器测试
+    ├── sector-tracker.test.ts # 板块追踪器测试
+    └── margin-trading.test.ts # 融资融券数据测试（39 个测试用例）
 ```
 
 ## 测试统计
@@ -25,7 +34,10 @@ lib/data-sources/astock/
 | code-util.ts | 72 | 93.1% | 90.32% | 100% |
 | limit-detector.ts | 34 | ~90% | ~85% | 100% |
 | trading-calendar.ts | 83 | 88.31% | 86.84% | 100% |
-| **总计** | **189** | **~90%** | **~87%** | **100%** |
+| money-flow-monitor.ts | 45+ | ~90% | ~85% | 100% |
+| sector-tracker.ts | 50+ | ~90% | ~85% | 100% |
+| margin-trading.ts | 39 | 94.96% | 85.14% | 100% |
+| **总计** | **320+** | **~91%** | **~86%** | **100%** |
 
 ## 核心功能
 
@@ -285,19 +297,83 @@ npm run test:coverage -- lib/data-sources/astock/__tests__/code-util.test.ts
 
 ## 扩展计划
 
-### 第一阶段（当前）
+### 第一阶段（已完成）
 
 - [x] 代码格式标准化工具
-- [ ] 涨跌停检测器
-- [ ] 交易时间适配
-- [ ] 交易时段感知调度器
-- [ ] Tushare A 股特色数据扩展
+- [x] 涨跌停检测器
+- [x] 交易时间适配
+- [x] 交易时段感知调度器
+- [x] Tushare A 股特色数据扩展
 
-### 第二阶段（规划中）
+### 第二阶段（进行中）
 
+- [x] 龙虎榜查看器 (TopListViewer)
+- [x] 资金流向监控器 (MoneyFlowMonitor)
+- [x] 板块追踪器 (SectorTracker)
+- [x] 融资融券数据类 (MarginTrading)
 - [ ] A 股板块识别
 - [ ] 股票名称标准化
 - [ ] A 股特定指标计算
+
+---
+
+## MarginTrading - 融资融券数据类
+
+提供融资融券数据获取、趋势分析和多空情绪分析功能。
+
+### 主要方法
+
+| 方法 | 描述 | 返回值 |
+|------|------|--------|
+| `getMarginData(symbol, date?)` | 获取融资融券数据 | `MarginResult` |
+| `getMarginTrend(symbol, days?)` | 获取融资融券趋势（N日） | `MarginTrendResult` |
+| `analyzeSentiment(symbol, days?)` | 分析多空情绪 | `SentimentAnalysisResult` |
+
+### 数据结构
+
+```typescript
+interface MarginData {
+  tsCode: string;
+  tradeDate: string;
+  marginBalance: number;   // 融资余额(万元)
+  marginBuy: number;       // 融资买入额(万元)
+  marginRepay: number;     // 融资偿还额(万元)
+  shortBalance: number;    // 融券余额(万元)
+  shortSell: number;       // 融券卖出量(手)
+  shortCover: number;      // 融券偿还量(手)
+  marginRatio: number;     // 融资融券余额比
+}
+
+interface MarginTrendResult {
+  success: boolean;
+  data?: MarginData[];
+  trend?: {
+    marginBalanceChange: number;
+    marginBalanceChangeRate: number;
+    shortBalanceChange: number;
+    shortBalanceChangeRate: number;
+    sentiment: 'bullish' | 'bearish' | 'neutral';
+  };
+}
+```
+
+### 使用示例
+
+```typescript
+import { MarginTrading } from '@/lib/data-sources/astock';
+
+const margin = new MarginTrading(tushare);
+
+// 获取融资融券数据
+const result = await margin.getMarginData('600519.SH');
+
+// 获取融资融券趋势
+const trend = await margin.getMarginTrend('600519.SH', 5);
+
+// 分析多空情绪
+const sentiment = await margin.analyzeSentiment('600519.SH', 5);
+console.log(sentiment.data?.sentiment); // 'bullish' | 'bearish' | 'neutral'
+```
 
 
 <claude-mem-context>
